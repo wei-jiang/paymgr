@@ -1,0 +1,1 @@
+vue init vuetifyjs/pwa rules
