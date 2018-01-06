@@ -1,35 +1,38 @@
 {
-  "name": "node_test",
+  "name": "pack_tool",
   "version": "1.0.0",
   "description": "",
-  "main": "index.js",
+  "main": "gulpfile.js",
   "scripts": {
     "rules": "cd rules && npm run build",
-    "jar": "cd kotlin_bridge && gradle build"
+    "jar": "cd kotlin_bridge && gradle build",
+    "node": "cd svr && node app.js",
+    "release": "cd svr && sh relkub.sh"
+    
   },
   "keywords": [],
-  "author": "",
+  "author": "david",
   "license": "ISC",
-  "dependencies": {
-    "body-parser": "^1.18.2",
-    "cookie-parser": "^1.4.3",
-    "cors": "^2.8.4",
-    "express": "^4.16.2",
-    "express-session": "^1.15.6",
-    "express-xml-bodyparser": "^0.3.0",
-    "helmet": "^3.9.0",
-    "java": "^0.9.0",
-    "jsonwebtoken": "^8.1.0",
-    "lodash": "^4.17.4",
-    "moment": "^2.20.1",
-    "mongodb": "^3.0.1",
-    "nunjucks": "^3.0.1",
-    "request": "^2.83.0",
-    "socket.io": "^2.0.4",
-    "uuid": "^3.1.0",
-    "when": "^3.7.8",
-    "winston": "^2.4.0",
-    "winston-daily-rotate-file": "^1.7.2",
-    "wxpay.js": "0.0.3"
-  }
+  "devDependencies": {
+    "babel": "^6.5.2",
+    "babel-preset-env": "^1.6.1",
+    "del": "^2.2.0",
+    "expect": "^1.1.0",
+    "gulp": "^3.9.0",
+    "gulp-babel": "^6.1.2",
+    "gulp-concat": "^2.6.0",
+    "gulp-minify-css": "^1.2.3",
+    "gulp-minify-html": "^1.0.5",
+    "gulp-rename": "^1.2.2",
+    "gulp-sourcemaps": "^1.6.0",
+    "gulp-uglify": "^1.5.1",
+    "gulp-zip": "^4.0.0",
+    "inherits": "~2.0.1",
+    "merge-stream": "^1.0.1",
+    "run-sequence": "^1.2.2",
+    "tape": "~3.0.0",
+    "vinyl-buffer": "^1.0.0",
+    "vinyl-source-stream": "^1.1.0"
+  },
+  "dependencies": {}
 }

@@ -17,21 +17,23 @@ function get_ip_by_req(req) {
 let get_myurl_by_req = (req) => {
     //depend on nginx config
     let host = req.headers['host'];
-    let proto = req.headers['x-forwarded-proto'];
+    let proto = req.headers['x-forwarded-proto'] || 'http';
     let port = req.headers['x-forwarded-port'];
-    let url = `${proto}://${host}:${port}`
+    let url = `${proto}://${host}`
+    if(port) url = url + `:${port}`
     // console.log(req.headers);
-    console.log(url);
+    // console.log(url);
     return url;
 }
 let get_myurl_by_sock = (sock) => {
     //depend on nginx config
     let host = sock.handshake.headers['host'];
-    let proto = sock.handshake.headers['x-forwarded-proto'];
+    let proto = sock.handshake.headers['x-forwarded-proto'] || 'http';
     let port = sock.handshake.headers['x-forwarded-port'];
-    let url = `${proto}://${host}:${port}`
+    let url = `${proto}://${host}`
+    if(port) url = url + `:${port}`
     // console.log(sock.handshake.headers);
-    console.log(url);
+    // console.log(url);
     return url;
 }
 function sign_token_1h(data) {
@@ -40,12 +42,15 @@ function sign_token_1h(data) {
 function sign_token(data) {
     return jwt.sign(data, credential.token_key);
 }
-
+function verify_token(token, cb) {
+    jwt.verify(token, credential.token_key, cb);
+}
 module.exports = {
     get_ip_by_sock,
     get_ip_by_req,
     get_myurl_by_req,
     get_myurl_by_sock,
     sign_token,
-    sign_token_1h
+    sign_token_1h,
+    verify_token
 }

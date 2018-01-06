@@ -189,4 +189,9 @@ export default {
 </script>
 <style src='noty/lib/noty.css'>
     /* global styles */
+    /* * {
+      margin: 0px;
+      padding: 0px;
+      overflow: hidden;
+    } */
 </style> 

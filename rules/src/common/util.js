@@ -17,7 +17,23 @@ function show_noty(msg) {
         text: msg
     }).show();
 }
+function show_confirm(msg, yes, no) {
+    let n = new Noty({
+        text: msg,
+        buttons: [
+            Noty.button('确定', 'btn btn-success', function () {
+                yes && yes();
+            }, { id: 'button1', 'data-status': 'ok' }),
+
+            Noty.button('取消', 'btn btn-error', function () {
+                no && no();
+                n.close();
+            })
+        ]
+    }).show();
+}
 export default {
     download_text,
-    show_noty
+    show_noty,
+    show_confirm
 }

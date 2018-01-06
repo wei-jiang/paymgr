@@ -8,7 +8,7 @@ class Net {
         this.sock = io();
         this.sock.on('connect', this.on_connect.bind(this));
         this.sock.on('mch_changed', this.on_mch_changed.bind(this));
-        this.sock.on('player_offline', this.on_player_offline.bind(this));
+        this.sock.on('pay_result', this.on_pay_result.bind(this));
 
     }
     register_ui_evt() {
@@ -35,9 +35,9 @@ class Net {
     on_mch_changed(data) {
         window.vm.$emit('mch_changed', data);
     }
-    on_player_offline(p) {
-        game.remove_player(p.openid)
-        window.vm.$emit('count_changed', game.players.length);
+    on_pay_result(res) {
+        console.log( '支付通知：'+JSON.stringify(res) )
+        window.vm.$emit('pay_result', res);
     }
     
 }
