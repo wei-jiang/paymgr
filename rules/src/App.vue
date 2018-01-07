@@ -155,7 +155,7 @@ export default {
       this.token = ''
     },
     is_filled(){
-      return this.mch.name && this.mch.wx_id && this.mch.aly_id;
+      return this.mch.name && (this.mch.wx_id || this.mch.aly_id);
     },
     download_token(){
       if(this.token){

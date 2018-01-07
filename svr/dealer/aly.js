@@ -1,6 +1,6 @@
 const java = require("java");
 
-java.classpath.push("../jar/kotlin_bridge-all.jar");
+java.classpath.push("./jar/kotlin_bridge-all.jar");
 java.asyncOptions = {
     syncSuffix: "Sync",
     asyncSuffix: "",
@@ -11,6 +11,7 @@ java.asyncOptions = {
 let AliPay = java.import('freego.AliPay');
 
 //winston is global
-function deal_aly_pay(app, io, db) {
+function deal_aly_pay(app, io) {
+
 }
 module.exports = deal_aly_pay;

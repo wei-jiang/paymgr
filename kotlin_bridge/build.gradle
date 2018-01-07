@@ -33,7 +33,7 @@ defaultTasks 'run'
 
 task copyJar(type: Copy) {
     from "${buildDir}/libs/kotlin_bridge-all.jar"
-    into '../jar'
+    into '../svr/jar'
 }
 build.dependsOn copyJar
 
@@ -52,4 +52,5 @@ dependencies {
     compile 'org.slf4j:slf4j-simple:1.7.21'
     compile 'com.google.code.gson:gson:2.8.2'
     compile 'com.github.wxpay:WXPay-SDK-Java:0.0.4'
+    compile fileTree(dir: 'libs', include: ['*.jar'])
 }

@@ -136,7 +136,7 @@ function req_wxpay_qr(sock, data, cb) {
 //     console.log(err);
 // });
 //mdb && winston is global
-function deal_wx_pay(app, io, db) {
+function deal_wx_pay(app, io) {
     io.on('connection', socket => {
         socket.on('req_wxpay_qr', (data, cb) => req_wxpay_qr(socket, data, cb));
         socket.on('req_micropay', (data, cb) => req_micropay(socket, data, cb));

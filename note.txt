@@ -1,1 +1,3 @@
 vue init vuetifyjs/pwa rules
+
+npm i --python=C:\Python27\python.exe --msvs_version=2015

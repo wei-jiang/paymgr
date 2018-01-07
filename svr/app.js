@@ -91,9 +91,20 @@ server.listen(app.get('port')
     , () => {
         console.log("Express server listening on port " + app.get('port'));
     });
+app.get('/authRedirect', function (req, res) {
+    let data = req.query;
+    console.log(data)
+    res.end('success');
+});
+app.post('/ali_notify', (req, res) => {
+    let resp = req.body;
+    console.log("ali qr pay callback...");
+    console.log(resp);
+    res.end('success');
+});
 app.post('/wx_notify', (req, res) => {
     let resp = req.body.xml;
-    console.log("scan qr pay callback...");
+    console.log("wx qr pay callback...");
     console.log(resp);
     if (resp.return_code[0] == 'SUCCESS' && resp.result_code[0] == 'SUCCESS') {
         let order_id = _.isArray(resp.out_trade_no) ? resp.out_trade_no[0] : resp.out_trade_no;
@@ -119,7 +130,7 @@ app.post('/wx_notify', (req, res) => {
             .catch(err => {
                 console.log('can not find pending order', err);
             })
-    } else{
+    } else {
         console.log('notify pay failed', resp.result_code[0]);
         winston.error('notify pay failed', resp.result_code[0]);
     }
@@ -139,7 +150,8 @@ io.on('connection', socket => {
             .insert(data)
             .then(() => {
                 socket.emit('mch_changed', '');
-                socket.broadcast.emit('mch_changed', '');
+                // socket.broadcast.emit('mch_changed', '');
+                redis_emitter.emit('mch_changed', '');
             })
     });
     socket.on('del_mch', data => {
@@ -150,7 +162,8 @@ io.on('connection', socket => {
             })
             .then(() => {
                 socket.emit('mch_changed', '');
-                socket.broadcast.emit('mch_changed', '');
+                // socket.broadcast.emit('mch_changed', '');
+                redis_emitter.emit('mch_changed', '');
             })
     });
     socket.on('mod_mch', data => {
@@ -164,7 +177,8 @@ io.on('connection', socket => {
             )
             .then(() => {
                 socket.emit('mch_changed', '');
-                socket.broadcast.emit('mch_changed', '');
+                // socket.broadcast.emit('mch_changed', '');
+                redis_emitter.emit('mch_changed', '');
             })
     });
     socket.on('get_mchs', (data, cb) => {
@@ -177,7 +191,7 @@ io.on('connection', socket => {
             })
     });
 });
-// const deal_aly_pay = require('./dealer/aly')
+const deal_aly_pay = require('./dealer/aly')
 const deal_wx_pay = require('./dealer/wx')
-// deal_aly_pay(app, io)
+deal_aly_pay(app, io)
 deal_wx_pay(app, io)
