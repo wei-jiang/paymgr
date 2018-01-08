@@ -129,27 +129,32 @@ export default {
       this.get_mchs();
     });
     this.$root.$on("pay_result", data => {
-      util.show_noty(`${data.body},价格${data.total_fee}分，支付成功`)
+      util.show_noty(`${data.body},价格${data.total_fee}分，支付成功`);
     });
   },
   methods: {
-    wx_qr(m) {            
-      if(!m.body || !m.total_fee){
-        return util.show_noty('请填写名称/价格')
-      }      
+    wx_qr(m) {
+      if (!m.body || !m.total_fee) {
+        return util.show_noty("请填写名称/价格");
+      }
       net.emit("req_token", m, token => {
         let data = {
           body: m.body,
           total_fee: m.total_fee,
           token
-        }
+        };
         net.emit("req_wxpay_qr", data, res => {
-          console.log(res)
-          let qr = new QRious({
-            element: document.getElementById(m._id),
-            size: 200,
-            value: res.code_url
-          });
+          console.log(res);
+          if (res.code_url) {
+            let qr = new QRious({
+              element: document.getElementById(m._id),
+              size: 200,
+              value: res.code_url
+            });
+          } else {
+            let reason = res.msg || '未知';
+            util.show_noty(`下单失败，原因：${reason}`);
+          }
         });
       });
     },
@@ -179,14 +184,13 @@ export default {
     mod_mch(m) {
       net.emit("mod_mch", m);
     },
-    download_token(m) {      
+    download_token(m) {
       net.emit("req_token", m, token => {
         util.download_text(`${m.name}.txt`, token);
-      });      
+      });
     }
   },
   mounted() {
-    
     this.get_mchs();
   }
 };

@@ -45,6 +45,21 @@ function sign_token(data) {
 function verify_token(token, cb) {
     jwt.verify(token, credential.token_key, cb);
 }
+function verify_req(data) {
+    return new Promise((resolve, reject) => {
+        if (!data.token || !data.body || !data.total_fee) {
+            reject('wrong parameters')
+        } else {
+            verify_token(data.token, (err, decoded) => {
+                if (err) {
+                    reject(err)
+                } else {
+                    resolve(decoded);
+                }
+            })
+        }
+    })
+}
 module.exports = {
     get_ip_by_sock,
     get_ip_by_req,

@@ -22,21 +22,7 @@ const wxpay = new WXPay({
     signType: WXPayConstants.SIGN_TYPE_HMACSHA256,  // 使用 HMAC-SHA256 签名，也可以选择  WXPayConstants.SIGN_TYPE_MD5
     useSandbox: false   // 不使用沙箱环境
 });
-function verify(data) {
-    return new Promise((resolve, reject) => {
-        if (!data.token || !data.body || !data.total_fee) {
-            reject('wrong parameters')
-        } else {
-            util.verify_token(data.token, (err, decoded) => {
-                if (err) {
-                    reject(err)
-                } else {
-                    resolve(decoded);
-                }
-            })
-        }
-    })
-}
+
 function get_req_obj(sock, data, decoded) {
     let client_ip = util.get_ip_by_sock(sock)
     let notify_url = `${util.get_myurl_by_sock(sock)}/wx_notify`
@@ -51,7 +37,7 @@ function get_req_obj(sock, data, decoded) {
     };
 }
 function req_micropay(sock, data, cb) {
-    verify(data)
+    util.verify_req(data)
         .then(decoded => {
             if(!data.auth_code){
                 return cb({
@@ -89,7 +75,7 @@ function req_micropay(sock, data, cb) {
         });
 }
 function req_wxpay_qr(sock, data, cb) {
-    verify(data)
+    util.verify_req(data)
         .then(decoded => {
             let reqObj = get_req_obj(sock, data, decoded)
             reqObj.trade_type = 'NATIVE';
@@ -137,6 +123,41 @@ function req_wxpay_qr(sock, data, cb) {
 // });
 //mdb && winston is global
 function deal_wx_pay(app, io) {
+    app.post('/wx_notify', (req, res) => {
+        let resp = req.body.xml;
+        console.log("wx qr pay callback...");
+        console.log(resp);
+        if (resp.return_code[0] == 'SUCCESS' && resp.result_code[0] == 'SUCCESS') {
+            let order_id = _.isArray(resp.out_trade_no) ? resp.out_trade_no[0] : resp.out_trade_no;
+            m_db.collection('pending_order').findOneAndDelete({
+                out_trade_no: order_id
+            })
+                .then(r => {
+                    let o = r.value
+                    console.log('find pending order', o);
+                    let order = {
+                        body: o.body,
+                        sub_mch_id: o.sub_mch_id,
+                        out_trade_no: o.out_trade_no,
+                        total_fee: o.total_fee,
+                        spbill_create_ip: o.spbill_create_ip,
+                        trade_type: o.trade_type,
+                        time_begin: moment(o.createdAt).format("YYYYMMDDHHmmss"),
+                        time_end: resp.time_end[0]
+                    }
+                    redis_emitter.to(o.sock_id).emit('pay_result', order);
+                    m_db.collection('orders').insert(order)
+                })
+                .catch(err => {
+                    console.log('can not find pending order', err);
+                })
+        } else {
+            console.log('notify pay failed', resp.result_code[0]);
+            winston.error('notify pay failed', resp.result_code[0]);
+        }
+    
+        res.end('success');
+    });
     io.on('connection', socket => {
         socket.on('req_wxpay_qr', (data, cb) => req_wxpay_qr(socket, data, cb));
         socket.on('req_micropay', (data, cb) => req_micropay(socket, data, cb));

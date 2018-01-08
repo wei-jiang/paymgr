@@ -63,7 +63,7 @@ set CMD_LINE_ARGS=%*
 :execute
 @rem Setup the command line
 
-set CLASSPATH=%APP_HOME%\lib\kotlin_bridge.jar;%APP_HOME%\lib\alipay-sdk-java20170307171631.jar;%APP_HOME%\lib\commons-logging-1.1.1.jar;%APP_HOME%\lib\kotlin-stdlib-1.2.10.jar;%APP_HOME%\lib\httpclient-4.5.3.jar;%APP_HOME%\lib\slf4j-simple-1.7.21.jar;%APP_HOME%\lib\slf4j-api-1.7.21.jar;%APP_HOME%\lib\gson-2.8.2.jar;%APP_HOME%\lib\WXPay-SDK-Java-0.0.4.jar;%APP_HOME%\lib\annotations-13.0.jar;%APP_HOME%\lib\httpcore-4.4.6.jar;%APP_HOME%\lib\commons-logging-1.2.jar;%APP_HOME%\lib\commons-codec-1.9.jar
+set CLASSPATH=%APP_HOME%\lib\kotlin_bridge.jar;%APP_HOME%\lib\alipay-sdk-java20180104135026.jar;%APP_HOME%\lib\commons-logging-1.1.1.jar;%APP_HOME%\lib\kotlin-stdlib-1.2.10.jar;%APP_HOME%\lib\httpclient-4.5.3.jar;%APP_HOME%\lib\slf4j-simple-1.7.21.jar;%APP_HOME%\lib\slf4j-api-1.7.21.jar;%APP_HOME%\lib\gson-2.8.2.jar;%APP_HOME%\lib\WXPay-SDK-Java-0.0.4.jar;%APP_HOME%\lib\annotations-13.0.jar;%APP_HOME%\lib\httpcore-4.4.6.jar;%APP_HOME%\lib\commons-logging-1.2.jar;%APP_HOME%\lib\commons-codec-1.9.jar
 
 @rem Execute kotlin_bridge
 "%JAVA_EXE%" %DEFAULT_JVM_OPTS% %JAVA_OPTS% %KOTLIN_BRIDGE_OPTS%  -classpath "%CLASSPATH%" freego.TestKt %CMD_LINE_ARGS%

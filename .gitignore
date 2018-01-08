@@ -10,6 +10,8 @@ bak/
 .vscode/
 # Runtime data
 pids
+MyConfig.java
+keys/
 *.pid
 *.seed
 *.pid.lock

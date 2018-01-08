@@ -91,52 +91,8 @@ server.listen(app.get('port')
     , () => {
         console.log("Express server listening on port " + app.get('port'));
     });
-app.get('/authRedirect', function (req, res) {
-    let data = req.query;
-    console.log(data)
-    res.end('success');
-});
-app.post('/ali_notify', (req, res) => {
-    let resp = req.body;
-    console.log("ali qr pay callback...");
-    console.log(resp);
-    res.end('success');
-});
-app.post('/wx_notify', (req, res) => {
-    let resp = req.body.xml;
-    console.log("wx qr pay callback...");
-    console.log(resp);
-    if (resp.return_code[0] == 'SUCCESS' && resp.result_code[0] == 'SUCCESS') {
-        let order_id = _.isArray(resp.out_trade_no) ? resp.out_trade_no[0] : resp.out_trade_no;
-        m_db.collection('pending_order').findOneAndDelete({
-            out_trade_no: order_id
-        })
-            .then(r => {
-                let o = r.value
-                console.log('find pending order', o);
-                let order = {
-                    body: o.body,
-                    sub_mch_id: o.sub_mch_id,
-                    out_trade_no: o.out_trade_no,
-                    total_fee: o.total_fee,
-                    spbill_create_ip: o.spbill_create_ip,
-                    trade_type: o.trade_type,
-                    time_begin: moment(o.createdAt).format("YYYYMMDDHHmmss"),
-                    time_end: resp.time_end[0]
-                }
-                redis_emitter.to(o.sock_id).emit('pay_result', order);
-                m_db.collection('orders').insert(order)
-            })
-            .catch(err => {
-                console.log('can not find pending order', err);
-            })
-    } else {
-        console.log('notify pay failed', resp.result_code[0]);
-        winston.error('notify pay failed', resp.result_code[0]);
-    }
 
-    res.end('success');
-});
+
 io.on('connection', socket => {
     socket.on('req_token', (data, cb) => {
         // console.log('in req_token', data)

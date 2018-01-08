@@ -8,7 +8,7 @@ import com.alipay.api.request.AlipayTradeWapPayRequest;
 import com.alipay.api.request.AlipayTradePrecreateRequest;
 import com.alipay.api.domain.AlipayTradeWapPayModel;
 import com.alipay.api.domain.AlipayTradeCreateModel;
-
+import com.alipay.api.internal.util.AlipaySignature;
 import java.util.HashMap;
 import java.util.Map;
 import com.google.gson.Gson;
@@ -28,15 +28,21 @@ class A() : MyClass(){
 }
 class AliPay {
 
-    fun precreate(json: String):String {
+    fun precreate(json: String, auth_token: String):String {
         val alipayClient = DefaultAlipayClient(
             URL, APP_ID, APP_PRIVATE_KEY, FORMAT, CHARSET, ALIPAY_PUBLIC_KEY, SIGNTYPE); //获得初始化的AlipayClient
         val request = AlipayTradePrecreateRequest();//创建API对应的request类
-        request.putOtherTextParam("app_auth_token", TOKEN);
+        request.putOtherTextParam("app_auth_token", auth_token);
         request.putOtherTextParam("notify_url", notify_url);
         request.setBizContent( json );//设置业务参数
         val response = alipayClient.execute(request);
         return response.getBody()
+    }
+    fun verify(json: String):Boolean{
+        val gson = Gson();
+        var data = HashMap<String, String>()
+        data = gson.fromJson(json, data::class.java)
+        return AlipaySignature.rsaCheckV1(data, ALIPAY_PUBLIC_KEY, CHARSET, SIGNTYPE)
     }
 }
 
@@ -52,18 +58,19 @@ class OrderInfo{
 }
 fun main(args: Array<String>) {
     val gson = Gson();
-    
+    val test = "{\"a\":3}"
     var data = HashMap<String, String>();
-    val extend_params = HashMap<String, String>()
-    extend_params.put("sys_service_provider_id", "2088621170920613");
-    data.put("total_amount", "0.01");
-    data.put("out_trade_no", "20150320010101002222");
-    data.put("subject", "Iphone6 16G");
-    data.put("store_id", "NJ_001");
-    data.put("timeout_express", "90m");
-    data.put("extend_params", gson.toJson(extend_params));
-    val oi = OrderInfo()
-    val res = AliPay().precreate( gson.toJson( oi ) )
-    println(res)
+    data = gson.fromJson(test, data::class.java)
+    // val extend_params = HashMap<String, String>()
+    // extend_params.put("sys_service_provider_id", "2088621170920613");
+    // data.put("total_amount", "0.01");
+    // data.put("out_trade_no", "20150320010101002222");
+    // data.put("subject", "Iphone6 16G");
+    // data.put("store_id", "NJ_001");
+    // data.put("timeout_express", "90m");
+    // data.put("extend_params", gson.toJson(extend_params));
+    // val oi = OrderInfo()
+    // val res = AliPay().precreate( gson.toJson( oi ) )
+    println( data.get("a") )
     
 }
