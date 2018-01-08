@@ -6,6 +6,7 @@ import com.alipay.api.AlipayApiException;
 import com.alipay.api.response.AlipayTradeWapPayResponse;
 import com.alipay.api.request.AlipayTradeWapPayRequest;
 import com.alipay.api.request.AlipayTradePrecreateRequest;
+import com.alipay.api.request.AlipayTradePayRequest;
 import com.alipay.api.domain.AlipayTradeWapPayModel;
 import com.alipay.api.domain.AlipayTradeCreateModel;
 import com.alipay.api.internal.util.AlipaySignature;
@@ -27,14 +28,20 @@ class A() : MyClass(){
     }
 }
 class AliPay {
-
+    //获得初始化的AlipayClient
+    val alipayClient = DefaultAlipayClient( URL, APP_ID, APP_PRIVATE_KEY, FORMAT, CHARSET, ALIPAY_PUBLIC_KEY, SIGNTYPE); 
     fun precreate(json: String, auth_token: String):String {
-        val alipayClient = DefaultAlipayClient(
-            URL, APP_ID, APP_PRIVATE_KEY, FORMAT, CHARSET, ALIPAY_PUBLIC_KEY, SIGNTYPE); //获得初始化的AlipayClient
         val request = AlipayTradePrecreateRequest();//创建API对应的request类
         request.putOtherTextParam("app_auth_token", auth_token);
         request.putOtherTextParam("notify_url", notify_url);
         request.setBizContent( json );//设置业务参数
+        val response = alipayClient.execute(request);
+        return response.getBody()
+    }
+    fun trade_pay(json: String, auth_token: String):String {
+        val request = AlipayTradePayRequest();
+        request.putOtherTextParam("app_auth_token", auth_token);
+        request.setBizContent( json );
         val response = alipayClient.execute(request);
         return response.getBody()
     }

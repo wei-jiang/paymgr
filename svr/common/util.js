@@ -67,5 +67,6 @@ module.exports = {
     get_myurl_by_sock,
     sign_token,
     sign_token_1h,
-    verify_token
+    verify_token,
+    verify_req
 }

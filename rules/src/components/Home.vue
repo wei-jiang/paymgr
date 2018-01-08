@@ -75,8 +75,8 @@
                   <!-- </v-flex> -->
                 </v-layout>
                 <v-card-actions>
-                    <v-btn color="orange" @click.prevent="wx_qr(m)">微信扫码</v-btn>
-                    <v-btn color="pink" @click.prevent="aly_qr(m)" disabled>支付宝扫码</v-btn>
+                    <v-btn color="orange" @click.prevent="wx_qr(m)" :disabled="!m.wx_id">微信扫码</v-btn>
+                    <v-btn color="pink" @click.prevent="aly_qr(m)" :disabled="!(m.ali && m.ali.app_auth_token)">支付宝扫码</v-btn>
                 </v-card-actions>
               </v-card>
               </v-layout>
@@ -159,19 +159,32 @@ export default {
       });
     },
     aly_qr(m) {
-      let qr = new QRious({
-        element: document.getElementById(m._id),
-        // background: "#fff",
-        // backgroundAlpha: 0.8,
-        foreground: "purple",
-        // foregroundAlpha: 0.8,
-        // level: "H",
-        size: 200,
-        value: "https://github.com/neocotic/qrious"
+      if (!m.body || !m.total_fee) {
+        return util.show_noty("请填写名称/价格");
+      }
+      net.emit("req_token", m, token => {
+        let data = {
+          body: m.body,
+          total_fee: m.total_fee,
+          token
+        };
+        net.emit("req_wxpay_qr", data, res => {
+          console.log(res);
+          if (res.code_url) {
+            let qr = new QRious({
+              element: document.getElementById(m._id),
+              foreground: "purple",
+              size: 200,
+              value: res.code_url
+            });
+          } else {
+            let reason = res.msg || '未知';
+            util.show_noty(`下单失败，原因：${reason}`);
+          }
+        });
       });
-      // net.emit("get_mchs", "", mchs => {
-      //   this.mchs = mchs;
-      // });
+      
+
     },
     get_mchs() {
       net.emit("get_mchs", "", mchs => {
