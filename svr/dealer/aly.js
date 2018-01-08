@@ -1,5 +1,6 @@
 const java = require("java");
 const moment = require('moment');
+const _ = require('lodash');
 const util = require('../common/util')
 java.classpath.push("./jar/kotlin_bridge-all.jar");
 java.asyncOptions = {

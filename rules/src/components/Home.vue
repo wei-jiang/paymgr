@@ -168,7 +168,7 @@ export default {
           total_fee: m.total_fee,
           token
         };
-        net.emit("req_wxpay_qr", data, res => {
+        net.emit("req_alipay_qr", data, res => {
           console.log(res);
           if (res.code_url) {
             let qr = new QRious({

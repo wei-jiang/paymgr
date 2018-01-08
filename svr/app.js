@@ -31,7 +31,7 @@ redis_for_emitter.get('foo', function (err, result) {
         console.log('redis server function not ok');
     }
 });
-const redis_emitter = require('socket.io-emitter')(redis_for_emitter);
+global.redis_emitter = require('socket.io-emitter')(redis_for_emitter);
 io.adapter(redis_adapter({ pubClient: redis_for_adapter, subClient: redis_for_adapter }));
 
 const credential = require('./secret')

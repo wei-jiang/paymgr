@@ -1,5 +1,6 @@
 const fs = require('fs');
 const moment = require('moment');
+const _ = require('lodash');
 const WXPay = require('wxpay.js').WXPay;
 const WXPayConstants = require('wxpay.js').WXPayConstants;
 
