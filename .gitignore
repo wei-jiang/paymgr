@@ -12,6 +12,7 @@ bak/
 pids
 MyConfig.java
 keys/
+kotlin_bridge/build/
 *.pid
 *.seed
 *.pid.lock
