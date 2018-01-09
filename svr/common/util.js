@@ -45,18 +45,22 @@ function sign_token(data) {
 function verify_token(token, cb) {
     jwt.verify(token, credential.token_key, cb);
 }
-function verify_req(data) {
+function verify_req(data, judge) {
     return new Promise((resolve, reject) => {
         if (!data.token || !data.body || !data.total_fee) {
             reject('wrong parameters')
         } else {
-            verify_token(data.token, (err, decoded) => {
-                if (err) {
-                    reject(err)
-                } else {
-                    resolve(decoded);
-                }
-            })
+            if(judge && !judge(data) ){
+                reject('wrong parameters')
+            } else {
+                verify_token(data.token, (err, decoded) => {
+                    if (err) {
+                        reject(err)
+                    } else {
+                        resolve(decoded);
+                    }
+                })
+            }            
         }
     })
 }

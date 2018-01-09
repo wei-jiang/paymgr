@@ -79,7 +79,7 @@ function deal_aly_pay(app, io) {
     });
     io.on('connection', socket => {
         socket.on('req_alipay_qr', (data, cb) => req_alipay_qr(socket, data, cb));
-        socket.on('req_auth_pay', (data, cb) => req_auth_pay(socket, data, cb));
+        socket.on('ali_auth_pay', (data, cb) => req_auth_pay(socket, data, cb));
     });
 }
 //把微信的请求格式转成ali的（客户端请求单位全部用 分）
@@ -136,6 +136,47 @@ function req_alipay_qr(sock, data, cb) {
 
 }
 function req_auth_pay(sock, data, cb) {
-
+    util.verify_req(data, ()=>data.auth_code)
+        .then(decoded => {
+            console.log('decoded=', decoded)
+            if (decoded.ali && decoded.ali.app_auth_token) {
+                let reqObj = get_req_obj(data)
+                reqObj.auth_code = data.auth_code
+                reqObj.scene = "bar_code"
+                ali_pay.trade_pay(JSON.stringify(reqObj), decoded.ali.app_auth_token, (err, res) => {
+                    if (err) {
+                        console.log(err, res)
+                        cb({
+                            ret: -1,
+                            msg: err
+                        })
+                    } else {
+                        res = JSON.parse(res).alipay_trade_pay_response;
+                        console.log(res)
+                        // data.sock_id = sock.id;
+                        // data.createdAt = new Date();
+                        // data.out_trade_no = reqObj.out_trade_no;
+                        // data.sub_mch_id = decoded.aly_id;
+                        // data.trade_type = '支付宝反扫';
+                        // m_db.collection('pending_order').insert(data)
+                        
+                        // res.code_url = res.qr_code  //把支付宝格式转成微信格式返回客户端
+                        cb(res)
+                    }
+                })
+            } else {
+                cb({
+                    ret: -1,
+                    msg: '无商户授权码'
+                })
+            }
+        })
+        .catch(err => {
+            console.log(err);
+            cb({
+                ret: -1,
+                msg: err
+            })
+        });
 }
 module.exports = deal_aly_pay;

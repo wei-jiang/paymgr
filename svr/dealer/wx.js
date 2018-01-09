@@ -38,16 +38,10 @@ function get_req_obj(sock, data, decoded) {
     };
 }
 function req_micropay(sock, data, cb) {
-    util.verify_req(data)
+    util.verify_req(data, ()=>data.auth_code)
         .then(decoded => {
-            if(!data.auth_code){
-                return cb({
-                    ret: -1,
-                    msg: 'wrong parameters'
-                })
-            }
             let reqObj = get_req_obj(sock, data, decoded)
-            reqObj.auth_code = auth_code;
+            reqObj.auth_code = data.auth_code;
             delete reqObj.notify_url;
             wxpay.microPay(reqObj)
                 .then(res => {
@@ -161,7 +155,7 @@ function deal_wx_pay(app, io) {
     });
     io.on('connection', socket => {
         socket.on('req_wxpay_qr', (data, cb) => req_wxpay_qr(socket, data, cb));
-        socket.on('req_micropay', (data, cb) => req_micropay(socket, data, cb));
+        socket.on('wx_auth_pay', (data, cb) => req_micropay(socket, data, cb));
     });
 }
 module.exports = deal_wx_pay;

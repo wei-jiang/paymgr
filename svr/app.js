@@ -87,7 +87,7 @@ global.winston = new (winston.Logger)({
     ]
 });
 server.listen(app.get('port')
-    // , 'localhost'
+    , 'localhost'
     , () => {
         console.log("Express server listening on port " + app.get('port'));
     });

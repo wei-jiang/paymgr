@@ -7,6 +7,8 @@ import com.alipay.api.response.AlipayTradeWapPayResponse;
 import com.alipay.api.request.AlipayTradeWapPayRequest;
 import com.alipay.api.request.AlipayTradePrecreateRequest;
 import com.alipay.api.request.AlipayTradePayRequest;
+import com.alipay.api.request.AlipayTradeQueryRequest;
+import com.alipay.api.request.AlipayTradeCancelRequest;
 import com.alipay.api.domain.AlipayTradeWapPayModel;
 import com.alipay.api.domain.AlipayTradeCreateModel;
 import com.alipay.api.internal.util.AlipaySignature;
@@ -41,6 +43,18 @@ class AliPay {
     fun trade_pay(json: String, auth_token: String):String {
         val request = AlipayTradePayRequest();
         request.putOtherTextParam("app_auth_token", auth_token);
+        request.setBizContent( json );
+        val response = alipayClient.execute(request);
+        return response.getBody()
+    }
+    fun trade_query(json: String):String {
+        val request = AlipayTradeQueryRequest();
+        request.setBizContent( json );
+        val response = alipayClient.execute(request);
+        return response.getBody()
+    }
+    fun trade_cancel(json: String):String {
+        val request = AlipayTradeCancelRequest();
         request.setBizContent( json );
         val response = alipayClient.execute(request);
         return response.getBody()
