@@ -97,6 +97,10 @@ import util from "../common/util";
 
 export default {
   name: "HomePage",
+  beforeRouteEnter(to, from, next) {
+      sessionStorage.getItem('token_id') ? next() : next('/login');
+      console.log('beforeRouteEnter')
+  },
   data() {
     return {
       mchs: [
@@ -204,6 +208,7 @@ export default {
     }
   },
   mounted() {
+    console.log('mounted')
     this.get_mchs();
   }
 };
