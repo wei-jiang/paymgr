@@ -1,8 +1,10 @@
 import io from 'socket.io-client';
-
+const uuidv1 = require('uuid/v1');
 import _ from 'lodash';
+import util from './common/util';
 
 
+window.cli_id = uuidv1()
 class Net {
     constructor() {
         this.sock = io();
@@ -20,6 +22,7 @@ class Net {
     on_connect() {
         this.register_ui_evt()
         console.log('on_connect to socket.io server');
+        this.emit('client_uuid', cli_id )
     }
     get_orders(openid, cb) {
         this.emit('get_orders', openid, orders => {

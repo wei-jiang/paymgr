@@ -1,3 +1,4 @@
+
 const fs = require('fs');
 const path = require('path');
 const app = require('express')();
@@ -17,40 +18,49 @@ const moment = require('moment');
 
 const Redis = require('ioredis');
 const redis_adapter = require('socket.io-redis');
-const redis_for_adapter = new Redis({
+const redis_adapter_pub = new Redis({
     host: '127.0.0.1',
     port: 6379
     // ,password: 'freego'
 });
-const redis_for_emitter = new Redis();
-redis_for_emitter.set('foo', 'bar');
-redis_for_emitter.get('foo', function (err, result) {
-    if ('bar' == result) {
-        console.log('redis server function ok');
-    } else {
-        console.log('redis server function not ok');
-    }
-});
-global.redis_emitter = require('socket.io-emitter')(redis_for_emitter);
-io.adapter(redis_adapter({ pubClient: redis_for_adapter, subClient: redis_for_adapter }));
-
+const redis_adapter_sub = new Redis();
+// const redis_for_emitter = new Redis();
+// redis_for_emitter.set('foo', 'bar');
+// redis_for_emitter.get('foo', function (err, result) {
+//     if ('bar' == result) {
+//         console.log('redis server function ok');
+//     } else {
+//         console.log('redis server function not ok');
+//     }
+// });
+// global.redis_emitter = require('socket.io-emitter')(redis_for_emitter);
+io.adapter(redis_adapter({ pubClient: redis_adapter_pub, subClient: redis_adapter_sub }));
+global.io = io;
 const credential = require('./secret')
 const util = require('./common/util')
 let mongo = require('mongodb'),
     MongoClient = mongo.MongoClient,
     ObjectId = mongo.ObjectID,
-    Binary = mongo.Binary
-    ;
+    Binary = mongo.Binary,
+    http_svr;
 global.m_db = null;
+app.set('port', process.env.PORT || 8200);
 MongoClient.connect(credential.db_url)
     .then(client => {
         m_db = client.db(credential.db_name);
         m_db.collection('pending_order').createIndex({ "createdAt": 1 }, { expireAfterSeconds: 3600 })
         console.log('connect to mongodb(paymgr) success')
+        const listen_port = app.get('port') + (parseInt(process.env.NODE_APP_INSTANCE) || 0);
+        // console.log('listen_port='+ listen_port)
+        http_svr = server.listen(listen_port
+            , 'localhost'
+            , () => {
+                console.log("Express server listening on port " + listen_port);
+            });
     })
     .catch(err => console.log('connect to mongodb(paymgr) failed', err))
 
-app.set('port', process.env.PORT || 8200);
+
 
 nunjucks.configure('views', {
     autoescape: true,
@@ -86,14 +96,64 @@ global.winston = new (winston.Logger)({
         })
     ]
 });
-server.listen(app.get('port')
-    , 'localhost'
-    , () => {
-        console.log("Express server listening on port " + app.get('port'));
-    });
 
 
+app.post('/test_notify', (req, res) => {
+    let resp = req.body;
+    console.log('test_notify=' + JSON.stringify(resp));
+    function find_delete(cnt) {
+        m_db.collection('pending_order').findOneAndDelete({
+            "status": "valid",
+            out_trade_no: resp.order_id
+        })
+            .then(r => {
+                let o = r.value
+                console.log('find pending order', o);
+                if (o) {
+                    let order = {
+                        body: o.body,
+                        sub_mch_id: o.sub_mch_id,
+                        out_trade_no: o.out_trade_no,
+                        total_fee: o.total_fee,
+                        spbill_create_ip: o.spbill_create_ip,
+                        trade_type: o.trade_type,
+                        time_begin: moment(o.createdAt).format("YYYY-MM-DD HH:mm:ss"),
+                        time_end: moment().format("YYYY-MM-DD HH:mm:ss")
+                    }
+                    io.to(o.sock_id).emit('pay_result', order);
+                    res.end('success');
+                } else {
+                    console.log('can not find pending order');       
+                    if(cnt > 0) {
+                        setTimeout( _.partial(find_delete, --cnt), 20 )
+                    } else {
+                        res.end('failed');
+                    }             
+                }
+            })
+            .catch(err => {
+                console.log('find pending order failed, err=', err);
+                res.end('failed');
+            })
+            
+    }
+    find_delete(2)
+});
 io.on('connection', socket => {
+    socket.on('client_uuid', hash => {
+        console.log('client_uuid', hash)
+        m_db.collection('pending_order').updateOne({
+            cli_id: hash
+        }, {
+                $set: { sock_id: socket.id, "status": "valid" }
+            })
+            .then(r => {
+                // console.log('updateOne reuturn=', r)
+                if (r.modifiedCount == 1) {
+                    console.log('updated socket.id')
+                }
+            })
+    });
     socket.on('req_token', (data, cb) => {
         // console.log('in req_token', data)
         delete data._id;
@@ -107,7 +167,7 @@ io.on('connection', socket => {
             .then(() => {
                 socket.emit('mch_changed', '');
                 // socket.broadcast.emit('mch_changed', '');
-                redis_emitter.emit('mch_changed', '');
+                io.emit('mch_changed', '');
             })
     });
     socket.on('del_mch', data => {
@@ -119,7 +179,7 @@ io.on('connection', socket => {
             .then(() => {
                 socket.emit('mch_changed', '');
                 // socket.broadcast.emit('mch_changed', '');
-                redis_emitter.emit('mch_changed', '');
+                io.emit('mch_changed', '');
             })
     });
     socket.on('mod_mch', data => {
@@ -134,7 +194,7 @@ io.on('connection', socket => {
             .then(() => {
                 socket.emit('mch_changed', '');
                 // socket.broadcast.emit('mch_changed', '');
-                redis_emitter.emit('mch_changed', '');
+                io.emit('mch_changed', '');
             })
     });
     socket.on('get_mchs', (data, cb) => {
@@ -151,3 +211,30 @@ const deal_aly_pay = require('./dealer/aly')
 const deal_wx_pay = require('./dealer/wx')
 deal_aly_pay(app, io)
 deal_wx_pay(app, io)
+function shutdown_svr() {
+    // console.log('in shutdown_svr()');
+    io.clients((error, clients) => {
+        console.log(clients); // => [6em3d4TJP8Et9EMNAAAA, G5p55dHhGgUnLUctAAAB]
+        if (_.size(clients) > 0) {
+            clients = _.map(clients, sid => {
+                return {
+                    sock_id: sid
+                }
+            })
+            let q = { $or: clients }
+            http_svr && http_svr.close(() => {
+                console.log('gracefully shutting down express server:)');
+
+                m_db.collection('pending_order').updateMany(q, { $set: { status: 'invalid' } })
+                    .then(() => {
+                        console.log('update clients sock status before exit');
+                        process.exit()
+                    })
+            });
+        }
+    });
+}
+process.on('SIGINT', function () {
+    // console.log('in process.on(SIGINT)')
+    shutdown_svr()
+});

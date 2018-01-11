@@ -36,6 +36,8 @@ let get_myurl_by_sock = (sock) => {
     // console.log(url);
     return url;
 }
+
+
 function sign_token_1h(data) {
     return jwt.sign(data, credential.token_key, { expiresIn: '1h' });
 }

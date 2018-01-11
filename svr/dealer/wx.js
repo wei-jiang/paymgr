@@ -34,11 +34,11 @@ function get_req_obj(sock, data, decoded) {
         out_trade_no: data.out_trade_no || moment().format("YYYYMMDDHHmmssSSS"),
         total_fee: data.total_fee,
         spbill_create_ip: client_ip,
-        notify_url: notify_url        
+        notify_url: notify_url
     };
 }
 function req_micropay(sock, data, cb) {
-    util.verify_req(data, ()=>data.auth_code)
+    util.verify_req(data, () => data.auth_code)
         .then(decoded => {
             let reqObj = get_req_obj(sock, data, decoded)
             reqObj.auth_code = data.auth_code;
@@ -53,7 +53,7 @@ function req_micropay(sock, data, cb) {
                     // m_db.collection('pending_order').insert(reqObj)
                     cb(res);
                 })
-                .catch( err=> {
+                .catch(err => {
                     console.log(err);
                     cb({
                         ret: -1,
@@ -70,17 +70,20 @@ function req_micropay(sock, data, cb) {
         });
 }
 function req_wxpay_qr(sock, data, cb) {
-    util.verify_req(data)
+    util.verify_req(data, () => data.cli_id)
         .then(decoded => {
             let reqObj = get_req_obj(sock, data, decoded)
             reqObj.trade_type = 'NATIVE';
             wxpay.unifiedOrder(reqObj)
                 .then(res => {
-                    console.log(res);
+                    // console.log(res);
                     //todo: if res success then insert pending order
+                    reqObj.cli_id = data.cli_id
+                    reqObj.status = 'valid'
                     reqObj.sock_id = sock.id;
                     reqObj.createdAt = new Date();
                     reqObj.trade_type = '微信正扫';
+                    console.log(reqObj);
                     m_db.collection('pending_order').insert(reqObj)
                     cb(res);
                 })
@@ -124,34 +127,48 @@ function deal_wx_pay(app, io) {
         console.log(resp);
         if (resp.return_code[0] == 'SUCCESS' && resp.result_code[0] == 'SUCCESS') {
             let order_id = _.isArray(resp.out_trade_no) ? resp.out_trade_no[0] : resp.out_trade_no;
-            m_db.collection('pending_order').findOneAndDelete({
-                out_trade_no: order_id
-            })
-                .then(r => {
-                    let o = r.value
-                    console.log('find pending order', o);
-                    let order = {
-                        body: o.body,
-                        sub_mch_id: o.sub_mch_id,
-                        out_trade_no: o.out_trade_no,
-                        total_fee: o.total_fee,
-                        spbill_create_ip: o.spbill_create_ip,
-                        trade_type: o.trade_type,
-                        time_begin: moment(o.createdAt).format("YYYYMMDDHHmmss"),
-                        time_end: resp.time_end[0]
-                    }
-                    redis_emitter.to(o.sock_id).emit('pay_result', order);
-                    m_db.collection('orders').insert(order)
+            function find_delete(cnt) {
+                m_db.collection('pending_order').findOneAndDelete({
+                    "status": "valid",
+                    out_trade_no: order_id
                 })
-                .catch(err => {
-                    console.log('can not find pending order', err);
-                })
+                    .then(r => {
+                        let o = r.value
+                        console.log('find pending order', o);
+                        if (o) {
+                            let order = {
+                                body: o.body,
+                                sub_mch_id: o.sub_mch_id,
+                                out_trade_no: o.out_trade_no,
+                                total_fee: o.total_fee,
+                                spbill_create_ip: o.spbill_create_ip,
+                                trade_type: o.trade_type,
+                                time_begin: moment(o.createdAt).format("YYYY-MM-DD HH:mm:ss"),
+                                time_end: moment().format("YYYY-MM-DD HH:mm:ss")
+                            }
+                            io.to(o.sock_id).emit('pay_result', order);
+                            m_db.collection('orders').insert(order)
+                            res.end('success');
+                        } else {
+                            // console.log('can not find pending order');       
+                            if(cnt > 0) {
+                                setTimeout( _.partial(find_delete, --cnt), 20 )
+                            } else {
+                                res.end('failed');
+                            }             
+                        }                        
+                    })
+                    .catch(err => {
+                        console.log('can not find pending order', err);
+                        res.end('failed');
+                    })
+            }
+            find_delete(2)
         } else {
             console.log('notify pay failed', resp.result_code[0]);
             winston.error('notify pay failed', resp.result_code[0]);
-        }
-    
-        res.end('success');
+            res.end('success');
+        }  
     });
     io.on('connection', socket => {
         socket.on('req_wxpay_qr', (data, cb) => req_wxpay_qr(socket, data, cb));

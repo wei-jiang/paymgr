@@ -36,7 +36,7 @@ function deal_aly_pay(app, io) {
                         }
                     }, { upsert: true })
                     .then(() => {
-                        redis_emitter.emit('mch_changed', '');
+                        io.emit('mch_changed', '');
                     })
 
             })
@@ -51,31 +51,49 @@ function deal_aly_pay(app, io) {
                 // console.log("验证通知签名：" + is_valid)
                 if (is_valid && resp.trade_status == "TRADE_SUCCESS" || resp.trade_status == "TRADE_FINISHED") {
                     let order_id = resp.out_trade_no
-                    m_db.collection('pending_order').findOneAndDelete({
-                        out_trade_no: order_id
-                    })
-                        .then(r => {
-                            let o = r.value
-                            console.log('find pending order', o);
-                            let order = {
-                                body: o.body,
-                                sub_mch_id: o.sub_mch_id,
-                                out_trade_no: o.out_trade_no,
-                                total_fee: o.total_fee,
-                                trade_type: o.trade_type,
-                                time_begin: moment(o.createdAt).format("YYYY-MM-DD HH:mm:ss"),
-                                time_end: resp.notify_time
-                            }
-                            redis_emitter.to(o.sock_id).emit('pay_result', order);
-                            m_db.collection('orders').insert(order)
-                        })
-                        .catch(err => {
-                            console.log('can not find pending order', err);
-                        })
+                    function find_delete(cnt) {
+                        m_db.collection('pending_order')
+                            .findOneAndDelete({
+                                "status": "valid",
+                                out_trade_no: order_id
+                            })
+                            .then(r => {
+                                let o = r.value
+                                console.log(`find pending order(${order_id})`, o);
+                                if (o) {
+                                    let order = {
+                                        body: o.body,
+                                        sub_mch_id: o.sub_mch_id,
+                                        out_trade_no: o.out_trade_no,
+                                        total_fee: o.total_fee,
+                                        trade_type: o.trade_type,
+                                        time_begin: moment(o.createdAt).format("YYYY-MM-DD HH:mm:ss"),
+                                        time_end: resp.notify_time
+                                    }
+                                    io.to(o.sock_id).emit('pay_result', order);
+                                    m_db.collection('orders').insert(order)
+                                    res.end('success');
+                                } else {
+                                    // console.log('can not find pending order');       
+                                    if(cnt > 0) {
+                                        setTimeout( _.partial(find_delete, --cnt), 20 )
+                                    } else {
+                                        res.end('failed');
+                                    }             
+                                }                                     
+                            })
+                            .catch(err => {
+                                console.log('can not find pending order', err);
+                                res.end('failed');
+                            })
+                    }
+                    find_delete(2)
                 }
             })
-
-        res.end('success');
+            .catch(err => {
+                console.log('can not find pending order', err);
+                res.end('failed');
+            })
     });
     io.on('connection', socket => {
         socket.on('req_alipay_qr', (data, cb) => req_alipay_qr(socket, data, cb));
@@ -94,7 +112,7 @@ function get_req_obj(data) {
     };
 }
 function req_alipay_qr(sock, data, cb) {
-    util.verify_req(data)
+    util.verify_req(data, () => data.cli_id)
         .then(decoded => {
             console.log('decoded=', decoded)
             if (decoded.ali && decoded.ali.app_auth_token) {
@@ -108,11 +126,14 @@ function req_alipay_qr(sock, data, cb) {
                         })
                     } else {
                         res = JSON.parse(res).alipay_trade_precreate_response;
+                        data.cli_id = data.cli_id
+                        data.status = 'valid'
                         data.sock_id = sock.id;
                         data.createdAt = new Date();
                         data.out_trade_no = reqObj.out_trade_no;
                         data.sub_mch_id = decoded.aly_id;
                         data.trade_type = '支付宝正扫';
+                        delete data.token;
                         m_db.collection('pending_order').insert(data)
                         console.log(res.qr_code)
                         res.code_url = res.qr_code  //把支付宝格式转成微信格式返回客户端
@@ -136,7 +157,7 @@ function req_alipay_qr(sock, data, cb) {
 
 }
 function req_auth_pay(sock, data, cb) {
-    util.verify_req(data, ()=>data.auth_code)
+    util.verify_req(data, () => data.auth_code)
         .then(decoded => {
             console.log('decoded=', decoded)
             if (decoded.ali && decoded.ali.app_auth_token) {
@@ -159,7 +180,7 @@ function req_auth_pay(sock, data, cb) {
                         // data.sub_mch_id = decoded.aly_id;
                         // data.trade_type = '支付宝反扫';
                         // m_db.collection('pending_order').insert(data)
-                        
+
                         // res.code_url = res.qr_code  //把支付宝格式转成微信格式返回客户端
                         cb(res)
                     }

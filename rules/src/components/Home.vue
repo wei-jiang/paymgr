@@ -141,12 +141,15 @@ export default {
       if (!m.body || !m.total_fee) {
         return util.show_noty("请填写名称/价格");
       }
-      net.emit("req_token", m, token => {
+      net.emit("req_token", m, token => {        
         let data = {
+          cli_id,
+          out_trade_no: (new Date() ).getTime().toString(),
           body: m.body,
           total_fee: m.total_fee,
           token
         };
+        console.log(data);
         net.emit("req_wxpay_qr", data, res => {
           console.log(res);
           if (res.code_url) {
@@ -168,10 +171,13 @@ export default {
       }
       net.emit("req_token", m, token => {
         let data = {
+          cli_id,
+          out_trade_no: (new Date() ).getTime().toString(),
           body: m.body,
           total_fee: m.total_fee,
           token
         };
+        console.log(data);
         net.emit("req_alipay_qr", data, res => {
           console.log(res);
           if (res.code_url) {

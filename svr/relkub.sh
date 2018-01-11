@@ -11,8 +11,7 @@ cd /data/apps/paymgr
 tar zxvf ./paymgr.tar.gz -C .
 npm i
 #node app.js
-#forever stop app.js
-#forever start app.js
+pm2 reload paymgr
 END
 )
 
