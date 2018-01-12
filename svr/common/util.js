@@ -66,6 +66,22 @@ function verify_req(data, judge) {
         }
     })
 }
+//two type of token: mch_token, usr_token
+function verify_usr(data) {
+    return new Promise((resolve, reject) => {
+        if(data.token){
+            verify_token(data.token, (err, decoded) => {
+                if (err) {
+                    reject(err)
+                } else {
+                    resolve(decoded);
+                }
+            })
+        } else {
+            reject('no login info presents')
+        }        
+    })
+}
 module.exports = {
     get_ip_by_sock,
     get_ip_by_req,
@@ -74,5 +90,6 @@ module.exports = {
     sign_token,
     sign_token_1h,
     verify_token,
-    verify_req
+    verify_req,
+    verify_usr
 }

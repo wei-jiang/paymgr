@@ -98,8 +98,8 @@ import util from "../common/util";
 export default {
   name: "HomePage",
   beforeRouteEnter(to, from, next) {
-      sessionStorage.getItem('token_id') ? next() : next('/login');
-      console.log('beforeRouteEnter')
+    sessionStorage.getItem("token_id") ? next() : next("/login");
+    console.log("beforeRouteEnter");
   },
   data() {
     return {
@@ -141,65 +141,83 @@ export default {
       if (!m.body || !m.total_fee) {
         return util.show_noty("请填写名称/价格");
       }
-      net.emit("req_token", m, token => {        
-        let data = {
-          cli_id,
-          out_trade_no: (new Date() ).getTime().toString(),
-          body: m.body,
-          total_fee: m.total_fee,
-          token
-        };
-        console.log(data);
-        net.emit("req_wxpay_qr", data, res => {
-          console.log(res);
-          if (res.code_url) {
-            let qr = new QRious({
-              element: document.getElementById(m._id),
-              size: 200,
-              value: res.code_url
-            });
-          } else {
-            let reason = res.msg || '未知';
-            util.show_noty(`下单失败，原因：${reason}`);
-          }
-        });
+      m.token = sessionStorage.getItem("usr_token")
+      net.emit("req_token", m, res => {
+        if (res.ret == 0) {
+          let data = {
+            cli_id,
+            out_trade_no: new Date().getTime().toString(),
+            body: m.body,
+            total_fee: m.total_fee,
+            token: res.token
+          };
+          console.log(data);
+          net.emit("req_wxpay_qr", data, res => {
+            console.log(res);
+            if (res.code_url) {
+              let qr = new QRious({
+                element: document.getElementById(m._id),
+                size: 200,
+                value: res.code_url
+              });
+            } else {
+              let reason = res.msg || "未知";
+              util.show_noty(`下单失败，原因：${reason}`);
+            }
+          });
+        } else {
+          util.show_noty(`您尚未登陆，获取商户token失败`);
+        }
       });
     },
     aly_qr(m) {
       if (!m.body || !m.total_fee) {
         return util.show_noty("请填写名称/价格");
       }
-      net.emit("req_token", m, token => {
-        let data = {
-          cli_id,
-          out_trade_no: (new Date() ).getTime().toString(),
-          body: m.body,
-          total_fee: m.total_fee,
-          token
-        };
-        console.log(data);
-        net.emit("req_alipay_qr", data, res => {
-          console.log(res);
-          if (res.code_url) {
-            let qr = new QRious({
-              element: document.getElementById(m._id),
-              foreground: "purple",
-              size: 200,
-              value: res.code_url
-            });
-          } else {
-            let reason = res.msg || '未知';
-            util.show_noty(`下单失败，原因：${reason}`);
-          }
-        });
+      m.token = sessionStorage.getItem("usr_token")
+      net.emit("req_token", m, res => {
+        if (res.ret == 0) {
+          let data = {
+            cli_id,
+            out_trade_no: new Date().getTime().toString(),
+            body: m.body,
+            total_fee: m.total_fee,
+            token: res.token
+          };
+          console.log(data);
+          net.emit("req_alipay_qr", data, res => {
+            console.log(res);
+            if (res.code_url) {
+              let qr = new QRious({
+                element: document.getElementById(m._id),
+                foreground: "purple",
+                size: 200,
+                value: res.code_url
+              });
+            } else {
+              let reason = res.msg || "未知";
+              util.show_noty(`下单失败，原因：${reason}`);
+            }
+          });
+        } else {
+          util.show_noty(`您尚未登陆，获取商户token失败`);
+        }
       });
-      
-
     },
     get_mchs() {
-      net.emit("get_mchs", "", mchs => {
-        this.mchs = mchs;
-      });
+      net.emit(
+        "get_mchs",
+        {
+          token: sessionStorage.getItem("usr_token")
+        },
+        res => {
+          if (res.ret == 0) {
+            this.mchs = res.mchs;
+          } else {
+            util.show_noty(`您尚未登陆，获取商户列表失败`);
+          }
+        }
+      );
     },
     del_mch(m) {
       net.emit("del_mch", m);
@@ -208,13 +226,17 @@ export default {
       net.emit("mod_mch", m);
     },
     download_token(m) {
-      net.emit("req_token", m, token => {
-        util.download_text(`${m.name}.txt`, token);
+      net.emit("req_token", m, res => {
+        if (res.ret == 0) {
+          util.download_text(`${m.name}.txt`, res.token);
+        } else {
+          util.show_noty(`您尚未登陆，下载token失败`);
+        }
       });
     }
   },
   mounted() {
-    console.log('mounted')
+    console.log("mounted");
     this.get_mchs();
   }
 };

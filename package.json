@@ -6,7 +6,7 @@
   "scripts": {
     "rules": "cd rules && npm run build",
     "jar": "cd kotlin_bridge && gradle build",
-    "node": "cd svr && node app.js",
+    "node": "cd ./svr && node ./app.js",
     "release": "cd svr && sh relkub.sh"
     
   },

@@ -54,7 +54,7 @@ function deal_aly_pay(app, io) {
                     function find_delete(cnt) {
                         m_db.collection('pending_order')
                             .findOneAndDelete({
-                                "status": "valid",
+                                "sock_status": "valid",
                                 out_trade_no: order_id
                             })
                             .then(r => {
@@ -112,7 +112,9 @@ function get_req_obj(data) {
     };
 }
 function req_alipay_qr(sock, data, cb) {
-    util.verify_req(data, () => data.cli_id)
+    util.verify_req(data
+        // , () => data.cli_id
+    )
         .then(decoded => {
             console.log('decoded=', decoded)
             if (decoded.ali && decoded.ali.app_auth_token) {
@@ -127,7 +129,8 @@ function req_alipay_qr(sock, data, cb) {
                     } else {
                         res = JSON.parse(res).alipay_trade_precreate_response;
                         data.cli_id = data.cli_id
-                        data.status = 'valid'
+                        data["pay_status"] = "invalid",
+                        data.sock_status = 'valid'
                         data.sock_id = sock.id;
                         data.createdAt = new Date();
                         data.out_trade_no = reqObj.out_trade_no;

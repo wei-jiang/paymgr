@@ -140,12 +140,12 @@ app.post('/test_notify', (req, res) => {
     find_delete(2)
 });
 io.on('connection', socket => {
-    socket.on('client_uuid', hash => {
-        console.log('client_uuid', hash)
+    socket.on('client_uuid', cli_uuid => {
+        console.log('client_uuid', cli_uuid)
         m_db.collection('pending_order').updateOne({
-            cli_id: hash
+            cli_id: cli_uuid
         }, {
-                $set: { sock_id: socket.id, "status": "valid" }
+                $set: { sock_id: socket.id, "sock_status": "valid" }
             })
             .then(r => {
                 // console.log('updateOne reuturn=', r)
@@ -154,57 +154,80 @@ io.on('connection', socket => {
                 }
             })
     });
+    /////////////////////////////////////////////////
+    //below are mch mgr apis, every api need token of user info
     socket.on('req_token', (data, cb) => {
         // console.log('in req_token', data)
-        delete data._id;
-        const token = util.sign_token(data)
-        cb(token)
+        util.verify_usr(data)
+        .then( usr=>{
+            delete data._id;
+            const token = util.sign_token(data)
+            cb( { ret:0,  token } )
+        })
+        .catch(err=>{
+            cb( { ret:-1,  err } )
+        })
+        
     });
     socket.on('add_mch', data => {
         // console.log('in req_token', data)
-        m_db.collection('merchant')
-            .insert(data)
-            .then(() => {
-                socket.emit('mch_changed', '');
-                // socket.broadcast.emit('mch_changed', '');
-                io.emit('mch_changed', '');
-            })
+        util.verify_usr(data)
+        .then( usr=>{
+            return m_db.collection('merchant').insert(data)
+        })
+        .then( () => {
+            // socket.broadcast.emit('mch_changed', '');
+            io.emit('mch_changed', '');
+        })
+        .catch(err=>{
+            socket.emit('need_login_first', '');
+        })
     });
     socket.on('del_mch', data => {
         // console.log('in del_mch', data)
-        m_db.collection('merchant')
-            .remove({
+        util.verify_usr(data)
+        .then( usr=>{
+            return  m_db.collection('merchant').remove({
                 _id: new ObjectId(data._id)
             })
-            .then(() => {
-                socket.emit('mch_changed', '');
-                // socket.broadcast.emit('mch_changed', '');
-                io.emit('mch_changed', '');
-            })
+        })
+        .then( () => {
+            // socket.broadcast.emit('mch_changed', '');
+            io.emit('mch_changed', '');
+        })
+        .catch(err=>{
+            socket.emit('need_login_first', '');
+        })
+
     });
     socket.on('mod_mch', data => {
         // console.log('in mod_mch', data)
-        let id = new ObjectId(data._id);
-        delete data._id;
-        m_db.collection('merchant')
-            .update(
-            { _id: id },
-            data
-            )
-            .then(() => {
-                socket.emit('mch_changed', '');
-                // socket.broadcast.emit('mch_changed', '');
-                io.emit('mch_changed', '');
-            })
+        util.verify_usr(data)
+        .then( usr=>{
+            let id = new ObjectId(data._id);
+            delete data._id;
+            return m_db.collection('merchant').update( { _id: id }, data )
+        })
+        .then( () => {
+            // socket.broadcast.emit('mch_changed', '');
+            io.emit('mch_changed', '');
+        })
+        .catch(err=>{
+            socket.emit('need_login_first', '');
+        })
     });
     socket.on('get_mchs', (data, cb) => {
-        m_db.collection('merchant')
-            .find({})
-            .toArray()
-            .then(mchs => {
-                // console.log(orders)
-                cb(mchs)
-            })
+        util.verify_usr(data)
+        .then( usr=>{
+            return m_db.collection('merchant').find({}).toArray()
+        })
+        .then(mchs => {
+            // console.log(orders)
+            cb( { ret:0,  mchs } )
+        })
+        .catch(err=>{
+            cb( { ret:-1,  err } )
+        })      
     });
 });
 const deal_aly_pay = require('./dealer/aly')

@@ -69,8 +69,11 @@ function req_micropay(sock, data, cb) {
             })
         });
 }
+//clzh ssm no cli_id, temp switch off
 function req_wxpay_qr(sock, data, cb) {
-    util.verify_req(data, () => data.cli_id)
+    util.verify_req(data
+        // , () => data.cli_id
+    )
         .then(decoded => {
             let reqObj = get_req_obj(sock, data, decoded)
             reqObj.trade_type = 'NATIVE';
@@ -79,7 +82,8 @@ function req_wxpay_qr(sock, data, cb) {
                     // console.log(res);
                     //todo: if res success then insert pending order
                     reqObj.cli_id = data.cli_id
-                    reqObj.status = 'valid'
+                    reqObj["pay_status"] = "invalid",
+                    reqObj.sock_status = 'valid'
                     reqObj.sock_id = sock.id;
                     reqObj.createdAt = new Date();
                     reqObj.trade_type = '微信正扫';
@@ -129,7 +133,7 @@ function deal_wx_pay(app, io) {
             let order_id = _.isArray(resp.out_trade_no) ? resp.out_trade_no[0] : resp.out_trade_no;
             function find_delete(cnt) {
                 m_db.collection('pending_order').findOneAndDelete({
-                    "status": "valid",
+                    "sock_status": "valid",
                     out_trade_no: order_id
                 })
                     .then(r => {

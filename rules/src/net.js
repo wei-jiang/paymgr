@@ -3,15 +3,18 @@ const uuidv1 = require('uuid/v1');
 import _ from 'lodash';
 import util from './common/util';
 
+window.cli_id = localStorage.getItem("uuid")
+if( !window.cli_id ){
+    window.cli_id = uuidv1()
+    localStorage.setItem('uuid', cli_id);
+} 
 
-window.cli_id = uuidv1()
 class Net {
     constructor() {
         this.sock = io();
         this.sock.on('connect', this.on_connect.bind(this));
         this.sock.on('mch_changed', this.on_mch_changed.bind(this));
         this.sock.on('pay_result', this.on_pay_result.bind(this));
-
     }
     register_ui_evt() {
         vm.$on("notify_seller_status", data => {
