@@ -6,6 +6,7 @@ const nunjucks = require('nunjucks');
 const helmet = require('helmet');
 const cors = require('cors');
 const session = require('express-session');
+const MongoStore = require('connect-mongo')(session);
 const server = require('http').Server(app);
 const io = require('socket.io')(server);
 const bodyParser = require('body-parser');
@@ -66,7 +67,10 @@ nunjucks.configure('views', {
     autoescape: true,
     express: app
 });
-app.use(session({ secret: credential.session_key }));
+app.use(session({ 
+    secret: credential.session_key,
+    store: new MongoStore({ db: m_db })
+}));
 app.use(require('express').static(__dirname + '/public'));
 
 app.use(helmet());
@@ -230,6 +234,8 @@ io.on('connection', socket => {
         })      
     });
 });
+const cron = require('./dealer/cron')
+cron.start()
 const deal_aly_pay = require('./dealer/aly')
 const deal_wx_pay = require('./dealer/wx')
 deal_aly_pay(app, io)
@@ -245,15 +251,17 @@ function shutdown_svr() {
                 }
             })
             let q = { $or: clients }
-            http_svr && http_svr.close(() => {
-                console.log('gracefully shutting down express server:)');
+            m_db.collection('pending_order').updateMany(q, { $set: { status: 'invalid' } })
+                .then(() => {
+                    console.log('update clients sock status before exit');
+                    process.exit()
+                })
+                .catch(err=>{
+                    process.exit()
+                })
 
-                m_db.collection('pending_order').updateMany(q, { $set: { status: 'invalid' } })
-                    .then(() => {
-                        console.log('update clients sock status before exit');
-                        process.exit()
-                    })
-            });
+        } else {
+            process.exit()
         }
     });
 }

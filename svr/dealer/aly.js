@@ -68,7 +68,7 @@ function deal_aly_pay(app, io) {
                                         total_fee: o.total_fee,
                                         trade_type: o.trade_type,
                                         time_begin: moment(o.createdAt).format("YYYY-MM-DD HH:mm:ss"),
-                                        time_end: resp.notify_time
+                                        time_end: moment().format("YYYY-MM-DD HH:mm:ss") //resp.notify_time
                                     }
                                     io.to(o.sock_id).emit('pay_result', order);
                                     m_db.collection('orders').insert(order)

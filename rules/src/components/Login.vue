@@ -36,9 +36,6 @@ export default {
         sessionStorage.setItem('token_id', data.token_id)
         this.$router.replace({ name: 'Home' })
     });
-    this.$root.$on("pay_result", data => {
-      util.show_noty(`${data.body},价格${data.total_fee}分，支付成功`);
-    });
   },
   methods: {
     
