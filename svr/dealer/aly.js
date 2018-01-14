@@ -51,43 +51,7 @@ function deal_aly_pay(app, io) {
                 // console.log("验证通知签名：" + is_valid)
                 if (is_valid && resp.trade_status == "TRADE_SUCCESS" || resp.trade_status == "TRADE_FINISHED") {
                     let order_id = resp.out_trade_no
-                    function find_delete(cnt) {
-                        m_db.collection('pending_order')
-                            .findOneAndDelete({
-                                "sock_status": "valid",
-                                out_trade_no: order_id
-                            })
-                            .then(r => {
-                                let o = r.value
-                                console.log(`find pending order(${order_id})`, o);
-                                if (o) {
-                                    let order = {
-                                        body: o.body,
-                                        sub_mch_id: o.sub_mch_id,
-                                        out_trade_no: o.out_trade_no,
-                                        total_fee: o.total_fee,
-                                        trade_type: o.trade_type,
-                                        time_begin: moment(o.createdAt).format("YYYY-MM-DD HH:mm:ss"),
-                                        time_end: moment().format("YYYY-MM-DD HH:mm:ss") //resp.notify_time
-                                    }
-                                    io.to(o.sock_id).emit('pay_result', order);
-                                    m_db.collection('orders').insert(order)
-                                    res.end('success');
-                                } else {
-                                    // console.log('can not find pending order');       
-                                    if(cnt > 0) {
-                                        setTimeout( _.partial(find_delete, --cnt), 20 )
-                                    } else {
-                                        res.end('failed');
-                                    }             
-                                }                                     
-                            })
-                            .catch(err => {
-                                console.log('can not find pending order', err);
-                                res.end('failed');
-                            })
-                    }
-                    find_delete(2)
+                    util.notify_or_save_pay_result(order_id, resp, io, res)
                 }
             })
             .catch(err => {

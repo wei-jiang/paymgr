@@ -127,47 +127,11 @@ function req_wxpay_qr(sock, data, cb) {
 function deal_wx_pay(app, io) {
     app.post('/wx_notify', (req, res) => {
         let resp = req.body.xml;
-        console.log("wx qr pay callback...");
-        console.log(resp);
+        // console.log("wx qr pay callback...");
+        // console.log(resp);
         if (resp.return_code[0] == 'SUCCESS' && resp.result_code[0] == 'SUCCESS') {
             let order_id = _.isArray(resp.out_trade_no) ? resp.out_trade_no[0] : resp.out_trade_no;
-            function find_delete(cnt) {
-                m_db.collection('pending_order').findOneAndDelete({
-                    "sock_status": "valid",
-                    out_trade_no: order_id
-                })
-                    .then(r => {
-                        let o = r.value
-                        console.log('find pending order', o);
-                        if (o) {
-                            let order = {
-                                body: o.body,
-                                sub_mch_id: o.sub_mch_id,
-                                out_trade_no: o.out_trade_no,
-                                total_fee: o.total_fee,
-                                spbill_create_ip: o.spbill_create_ip,
-                                trade_type: o.trade_type,
-                                time_begin: moment(o.createdAt).format("YYYY-MM-DD HH:mm:ss"),
-                                time_end: moment().format("YYYY-MM-DD HH:mm:ss")
-                            }
-                            io.to(o.sock_id).emit('pay_result', order);
-                            m_db.collection('orders').insert(order)
-                            res.end('success');
-                        } else {
-                            // console.log('can not find pending order');       
-                            if(cnt > 0) {
-                                setTimeout( _.partial(find_delete, --cnt), 20 )
-                            } else {
-                                res.end('failed');
-                            }             
-                        }                        
-                    })
-                    .catch(err => {
-                        console.log('can not find pending order', err);
-                        res.end('failed');
-                    })
-            }
-            find_delete(2)
+            util.notify_or_save_pay_result(order_id, resp, io, res)
         } else {
             console.log('notify pay failed', resp.result_code[0]);
             winston.error('notify pay failed', resp.result_code[0]);

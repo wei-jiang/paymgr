@@ -98,7 +98,7 @@ import util from "../common/util";
 export default {
   name: "HomePage",
   beforeRouteEnter(to, from, next) {
-    sessionStorage.getItem("token_id") ? next() : next("/login");
+    sessionStorage.getItem("usr_token") ? next() : next("/login");
     console.log("beforeRouteEnter");
   },
   data() {
@@ -106,8 +106,8 @@ export default {
       mchs: [
         {
           name: "蔡伦竹海",
-          wx_id: "123423414124",
-          aly_id: "9989887776767"
+          wx_id: "",
+          aly_id: ""
         }
       ],
       info: "",
@@ -137,12 +137,15 @@ export default {
     });
   },
   methods: {
+    to_login(){
+      this.$router.replace({ name: 'Login' })
+      util.show_noty(`您尚未登陆，请登录后操作`);
+    },
     wx_qr(m) {
       if (!m.body || !m.total_fee) {
         return util.show_noty("请填写名称/价格");
       }
-      m.token = sessionStorage.getItem("usr_token")
-      net.emit("req_token", m, res => {
+      net.emit_with_usr_token("req_token", m, res => {
         if (res.ret == 0) {
           let data = {
             cli_id,
@@ -166,7 +169,7 @@ export default {
             }
           });
         } else {
-          util.show_noty(`您尚未登陆，获取商户token失败`);
+          this.to_login()
         }
       });
     },
@@ -174,8 +177,8 @@ export default {
       if (!m.body || !m.total_fee) {
         return util.show_noty("请填写名称/价格");
       }
-      m.token = sessionStorage.getItem("usr_token")
-      net.emit("req_token", m, res => {
+      
+      net.emit_with_usr_token("req_token", m, res => {
         if (res.ret == 0) {
           let data = {
             cli_id,
@@ -200,7 +203,7 @@ export default {
             }
           });
         } else {
-          util.show_noty(`您尚未登陆，获取商户token失败`);
+          this.to_login()
         }
       });
     },
@@ -214,23 +217,23 @@ export default {
           if (res.ret == 0) {
             this.mchs = res.mchs;
           } else {
-            util.show_noty(`您尚未登陆，获取商户列表失败`);
+            this.to_login()
           }
         }
       );
     },
     del_mch(m) {
-      net.emit("del_mch", m);
+      net.emit_with_usr_token("del_mch", m);
     },
     mod_mch(m) {
-      net.emit("mod_mch", m);
+      net.emit_with_usr_token("mod_mch", m);
     },
     download_token(m) {
-      net.emit("req_token", m, res => {
+      net.emit_with_usr_token("req_token", m, res => {
         if (res.ret == 0) {
           util.download_text(`${m.name}.txt`, res.token);
         } else {
-          util.show_noty(`您尚未登陆，下载token失败`);
+          this.to_login()
         }
       });
     }

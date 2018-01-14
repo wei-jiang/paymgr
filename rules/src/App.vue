@@ -53,8 +53,11 @@
         light
         @click.stop="rightDrawer = !rightDrawer"
       >
-        <v-icon>add</v-icon>
+        <v-icon>add</v-icon>        
       </v-btn>
+
+      <v-btn v-if="is_login" icon light @click.stop="logout"> <v-icon>highlight_off</v-icon></v-btn>
+
     </v-toolbar>
     <v-content>
       <router-view></router-view>
@@ -146,6 +149,13 @@ export default {
     };
   },
   methods: {
+    is_login(){
+      return sessionStorage.getItem("usr_token")
+    },
+    logout(){
+      sessionStorage.removeItem('usr_token')
+      this.$router.replace({ name: 'Login' })
+    },
     clear(){
       this.mch = {
         name:'',

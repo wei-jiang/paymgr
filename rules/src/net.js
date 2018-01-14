@@ -38,6 +38,12 @@ class Net {
             this.sock.emit(name, data, cb)
         }
     }
+    emit_with_usr_token(name, data, cb) {
+        if (this.sock) {
+            data.token = sessionStorage.getItem("usr_token")
+            this.sock.emit(name, data, cb)
+        }
+    }
     on_mch_changed(data) {
         window.vm.$emit('mch_changed', data);
     }

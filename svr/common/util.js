@@ -1,4 +1,6 @@
 const jwt = require('jsonwebtoken');
+const _ = require('lodash');
+const moment = require('moment');
 const credential = require('../secret')
 
 function get_ip_by_sock(sock) {
@@ -82,6 +84,62 @@ function verify_usr(data) {
         }        
     })
 }
+function notify_or_save_pay_result(order_id, resp, io, res) {
+    function find_and_delete(data) {
+        m_db.collection('pending_order').findOneAndDelete({
+            "sock_status": "valid",
+            out_trade_no: order_id
+        })
+            .then(r => {
+                let o = r.value
+                // console.log('find pending order', o);
+                if (o) {
+                    let order = {
+                        body: o.body,
+                        sub_mch_id: o.sub_mch_id,
+                        out_trade_no: o.out_trade_no,
+                        total_fee: o.total_fee,
+                        spbill_create_ip: o.spbill_create_ip,
+                        trade_type: o.trade_type,
+                        time_begin: moment(o.createdAt).format("YYYY-MM-DD HH:mm:ss"),
+                        time_end: moment().format("YYYY-MM-DD HH:mm:ss")
+                    }
+                    io.to(o.sock_id).emit('pay_result', order);
+                    m_db.collection('orders').insert(order)
+                    res.end('success');
+                } else {
+                    // console.log('can not find pending order');
+                    setTimeout(_.partial(find_and_update, data), 0)
+                }
+            })
+            .catch(err => {
+                // console.log('find pending order failed, err=', err);
+            })
+    }
+    function find_and_update(data) {
+        m_db.collection('pending_order').findOneAndUpdate(
+            {
+                "sock_status": "invalid",
+                out_trade_no: order_id
+            },
+            {
+                $set: { "pay_status": "valid", noty_data: data }
+            }
+        )
+            .then(r => {
+                // console.log('find_and_update', r)
+                if (r.ok == 1) {
+                    res.end('success');
+                } else {
+                    setImmediate(_.partial(find_and_delete, data))
+                }
+            })
+            .catch(err => {
+                setImmediate(_.partial(find_and_delete, data))
+            })
+    }
+    find_and_delete(resp)
+}
 module.exports = {
     get_ip_by_sock,
     get_ip_by_req,
@@ -91,5 +149,6 @@ module.exports = {
     sign_token_1h,
     verify_token,
     verify_req,
-    verify_usr
+    verify_usr,
+    notify_or_save_pay_result
 }

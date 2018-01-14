@@ -1,9 +1,13 @@
 <template>
     <div>
         <div>
-            this is login page            
+            <v-text-field
+              label="用户密钥"
+              v-model="usr_token"
+              multi-line
+            ></v-text-field>           
         </div>
-        <button @click="login">登录</button>
+        <button v-if="usr_token" @click="login">登录</button>
     </div>     
 </template>
 
@@ -17,38 +21,33 @@ export default {
 
   data() {
     return {
-      mchs: [
-        {
-          name: "蔡伦竹海",
-          wx_id: "123423414124",
-          aly_id: "9989887776767"
-        }
-      ]
+      usr_token: ''
     };
   },
   computed: {
     mp_nickname() {
-      return wi.nickname;
+ 
     }
   },
   created: function() {
-    this.$root.$on("login_success", data => {
-        sessionStorage.setItem('token_id', data.token_id)
+    this.$root.$on("login_success", usr_token => {
+        sessionStorage.setItem('usr_token', usr_token)
         this.$router.replace({ name: 'Home' })
     });
   },
-  methods: {
-    
+  methods: {    
     login() {
-      this.$root.$emit("login_success", 'aaaaaaaaaa' )
-    },
-    mod_mch(m) {
-      net.emit("mod_mch", m);
-    },
-    download_token(m) {
-      net.emit("req_token", m, token => {
-        util.download_text(`${m.name}.txt`, token);
-      });
+      if(this.usr_token){
+        net.emit("verify_user", this.usr_token, res => {
+          if(res.ret === 0){
+            this.$root.$emit("login_success", this.usr_token )
+          } else {
+            util.show_noty(`登陆失败`);
+          }
+        })
+      } else{
+        //read token file here
+      }      
     }
   },
   mounted() {
