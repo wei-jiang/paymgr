@@ -1,4 +1,5 @@
 const jwt = require('jsonwebtoken');
+const crypto = require('crypto');
 const _ = require('lodash');
 const moment = require('moment');
 const credential = require('../secret')
@@ -140,7 +141,12 @@ function notify_or_save_pay_result(order_id, resp, io, res) {
     }
     find_and_delete(resp)
 }
+function hash_str(str){
+    return crypto.createHash('md5').update(str).digest("hex");
+}
+
 module.exports = {
+    hash_str,
     get_ip_by_sock,
     get_ip_by_req,
     get_myurl_by_req,

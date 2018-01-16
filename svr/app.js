@@ -49,6 +49,7 @@ MongoClient.connect(credential.db_url)
     .then(client => {
         m_db = client.db(credential.db_name);
         m_db.collection('pending_order').createIndex({ "createdAt": 1 }, { expireAfterSeconds: 3600 })
+        m_db.collection('temp').createIndex({ "createdAt": 1 }, { expireAfterSeconds: 30*60 })
         console.log('connect to mongodb(paymgr) success')
         const listen_port = app.get('port') + (parseInt(process.env.NODE_APP_INSTANCE) || 0);
         // console.log('listen_port='+ listen_port)

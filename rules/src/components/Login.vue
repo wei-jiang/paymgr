@@ -7,7 +7,7 @@
               multi-line
             ></v-text-field>           
         </div>
-        <button v-if="usr_token" @click="login">登录</button>
+        <v-btn color="info" v-if="usr_token" @click="login">登录</v-btn>
     </div>     
 </template>
 

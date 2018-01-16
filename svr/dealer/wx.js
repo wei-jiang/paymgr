@@ -110,7 +110,7 @@ function req_wxpay_qr(sock, data, cb) {
             data.createdAt = new Date();
             data.trade_type = '微信正扫';
             delete data.token;
-            console.log(data);
+            // console.log(data);
             m_db.collection('pending_order').insert(data)
             cb(res);
         })
@@ -147,21 +147,30 @@ function order_query(sock, data, cb) {
         });
 }
 function dl_wx_bill(sock, data, cb) {
+    let reqObj = {
+        sub_mch_id: data.sub_mch_id,
+        bill_type: 'ALL',
+        bill_date: data.bill_date
+    }
     util.verify_usr(data)
-        .then(decoded => {
-            let reqObj = {
-                sub_mch_id: data.sub_mch_id,
-                bill_type: 'ALL',
-                bill_date: data.bill_date
-            }
+        .then(decoded => {                 
+            return m_db.collection('temp').findOne({"csv_id": util.hash_str(JSON.stringify(reqObj) )})                      
             return wxpay.downloadBill(reqObj)
         })
+        .then( csv => {
+            console.log('find cached csv', csv)
+            if (csv) {
+                res.end('success');
+            } else {
+                setImmediate(_.partial(find_and_delete, data))
+            }
+        }) 
         .then(res => {
             // console.log(res);
             if(res.return_code == 'SUCCESS'){
                 cb({
                     ret: 0,
-                    data: iconv.encode(res.data, 'win1255')
+                    data: res.data
                 });
             } else {
                 cb({

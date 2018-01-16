@@ -40,6 +40,7 @@ class Net {
     }
     emit_with_usr_token(name, data, cb) {
         if (this.sock) {
+            data = data || {}
             data.token = sessionStorage.getItem("usr_token")
             this.sock.emit(name, data, cb)
         }
