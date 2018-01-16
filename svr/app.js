@@ -112,63 +112,64 @@ app.get('/headers', function (req, res) {
     let data = req.headers;
     res.end( JSON.stringify(data) );
 });
-app.post('/test_notify', (req, res) => {
-    let resp = req.body;
-    console.log('test_notify=' + JSON.stringify(resp));
-    function find_and_delete(data) {
-        m_db.collection('pending_order').findOneAndDelete({
-            "sock_status": "valid",
-            out_trade_no: data.order_id
-        })
-            .then(r => {
-                let o = r.value
-                console.log('find pending order', o);
-                if (o) {
-                    let order = {
-                        body: o.body,
-                        sub_mch_id: o.sub_mch_id,
-                        out_trade_no: o.out_trade_no,
-                        total_fee: o.total_fee,
-                        spbill_create_ip: o.spbill_create_ip,
-                        trade_type: o.trade_type,
-                        time_begin: moment(o.createdAt).format("YYYY-MM-DD HH:mm:ss"),
-                        time_end: moment().format("YYYY-MM-DD HH:mm:ss")
-                    }
-                    io.to(o.sock_id).emit('pay_result', order);
-                    res.end('success');
-                } else {
-                    console.log('can not find pending order');
-                    setTimeout(_.partial(find_and_update, data), 0)
-                }
-            })
-            .catch(err => {
-                console.log('find pending order failed, err=', err);
-            })
-    }
-    function find_and_update(data) {
-        m_db.collection('pending_order').findOneAndUpdate(
-            {
-                "sock_status": "invalid",
-                out_trade_no: data.order_id
-            },
-            {
-                $set: { "pay_status": "valid", noty_data: data }
-            }
-        )
-            .then(r => {
-                console.log('find_and_update', r)
-                if (r.ok == 1) {
-                    res.end('success');
-                } else {
-                    setImmediate(_.partial(find_and_delete, data))
-                }
-            })
-            .catch(err => {
-                setImmediate(_.partial(find_and_delete, data))
-            })
-    }
-    find_and_delete(resp)
-});
+
+// app.post('/test_notify', (req, res) => {
+//     let resp = req.body;
+//     console.log('test_notify=' + JSON.stringify(resp));
+//     function find_and_delete(data) {
+//         m_db.collection('pending_order').findOneAndDelete({
+//             "sock_status": "valid",
+//             out_trade_no: data.order_id
+//         })
+//             .then(r => {
+//                 let o = r.value
+//                 console.log('find pending order', o);
+//                 if (o) {
+//                     let order = {
+//                         body: o.body,
+//                         sub_mch_id: o.sub_mch_id,
+//                         out_trade_no: o.out_trade_no,
+//                         total_fee: o.total_fee,
+//                         spbill_create_ip: o.spbill_create_ip,
+//                         trade_type: o.trade_type,
+//                         time_begin: moment(o.createdAt).format("YYYY-MM-DD HH:mm:ss"),
+//                         time_end: moment().format("YYYY-MM-DD HH:mm:ss")
+//                     }
+//                     io.to(o.sock_id).emit('pay_result', order);
+//                     res.end('success');
+//                 } else {
+//                     console.log('can not find pending order');
+//                     setTimeout(_.partial(find_and_update, data), 0)
+//                 }
+//             })
+//             .catch(err => {
+//                 console.log('find pending order failed, err=', err);
+//             })
+//     }
+//     function find_and_update(data) {
+//         m_db.collection('pending_order').findOneAndUpdate(
+//             {
+//                 "sock_status": "invalid",
+//                 out_trade_no: data.order_id
+//             },
+//             {
+//                 $set: { "pay_status": "valid", noty_data: data }
+//             }
+//         )
+//             .then(r => {
+//                 console.log('find_and_update', r)
+//                 if (r.ok == 1) {
+//                     res.end('success');
+//                 } else {
+//                     setImmediate(_.partial(find_and_delete, data))
+//                 }
+//             })
+//             .catch(err => {
+//                 setImmediate(_.partial(find_and_delete, data))
+//             })
+//     }
+//     find_and_delete(resp)
+// });
 io.on('connection', socket => {
     socket.on('disconnect', function () {
         m_db.collection('pending_order').updateMany(
@@ -238,6 +239,20 @@ io.on('connection', socket => {
     });
     /////////////////////////////////////////////////
     //below are mch mgr apis, every api need token of user info
+    socket.on('find_orders', (data, cb) => {
+        // console.log('in req_token', data)
+        util.verify_usr(data)
+            .then(usr => {
+                return m_db.collection('orders').find({}).toArray()            
+            })
+            .then(orders=>{
+                cb({ ret: 0, orders })
+            })  
+            .catch(err => {
+                cb({ ret: -1, err })
+            })
+
+    });
     socket.on('req_token', (data, cb) => {
         // console.log('in req_token', data)
         util.verify_usr(data)

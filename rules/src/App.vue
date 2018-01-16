@@ -13,6 +13,7 @@
           v-for="(item, i) in items"
           :key="i"
           exact
+          @click.stop="go_page(item.page)" 
         >
           <v-list-tile-action>
             <v-icon light v-html="item.icon"></v-icon>
@@ -138,8 +139,19 @@ export default {
       fixed: false,
       items: [
         {
-          icon: "bubble_chart",
-          title: "商户列表"
+          icon: "business",
+          title: "商户列表",
+          page: 'Home'
+        },
+        {
+          icon: "reorder",
+          title: "订单管理",
+          page: 'Order'
+        },
+        {
+          icon: "account_circle",
+          title: "用户管理",
+          page: 'User'
         }
       ],
       miniVariant: false,
@@ -155,6 +167,9 @@ export default {
     logout(){
       sessionStorage.removeItem('usr_token')
       this.$router.replace({ name: 'Login' })
+    },
+    go_page(name){
+      this.$router.replace({ name })
     },
     clear(){
       this.mch = {

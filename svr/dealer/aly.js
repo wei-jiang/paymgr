@@ -1,6 +1,7 @@
 const java = require("java");
 const moment = require('moment');
 const _ = require('lodash');
+const credential = require('../secret')
 const util = require('../common/util')
 java.classpath.push("./jar/kotlin_bridge-all.jar");
 java.asyncOptions = {
@@ -65,24 +66,29 @@ function deal_aly_pay(app, io) {
     });
 }
 //把微信的请求格式转成ali的（客户端请求单位全部用 分）
-function get_req_obj(data) {
+function get_req_obj(sock, data, decoded) {
+    data.total_fee = parseInt(data.total_fee)
+    data.sub_mch_id = decoded.aly_id;
+    data.spbill_create_ip = util.get_ip_by_sock(sock);
+    data.out_trade_no = data.out_trade_no || moment().format("freego_YYYYMMDDHHmmssSSS")
+    //above as order info to save in db
     return {
         subject: data.body,
-        out_trade_no: data.out_trade_no || moment().format("YYYYMMDDHHmmssSSS"),
-        total_amount: parseFloat(parseInt(data.total_fee) / 100).toFixed(2),
+        out_trade_no: data.out_trade_no,
+        total_amount: parseFloat(data.total_fee / 100).toFixed(2),
         extend_params: {
-            sys_service_provider_id: "2088621170920613"
+            sys_service_provider_id: credential.ali_sys_service_provider_id
         }
     };
 }
 function req_alipay_qr(sock, data, cb) {
     util.verify_req(data
-        // , () => data.cli_id
+        , () => data.cli_id
     )
         .then(decoded => {
             console.log('decoded=', decoded)
             if (decoded.ali && decoded.ali.app_auth_token) {
-                let reqObj = get_req_obj(data)
+                let reqObj = get_req_obj(sock, data, decoded)
                 ali_pay.precreate(JSON.stringify(reqObj), decoded.ali.app_auth_token, (err, res) => {
                     if (err) {
                         console.log(err, res)
@@ -97,8 +103,7 @@ function req_alipay_qr(sock, data, cb) {
                         data.sock_status = 'valid'
                         data.sock_id = sock.id;
                         data.createdAt = new Date();
-                        data.out_trade_no = reqObj.out_trade_no;
-                        data.sub_mch_id = decoded.aly_id;
+                        data.out_trade_no = reqObj.out_trade_no;                        
                         data.trade_type = '支付宝正扫';
                         delete data.token;
                         m_db.collection('pending_order').insert(data)
@@ -128,7 +133,7 @@ function req_auth_pay(sock, data, cb) {
         .then(decoded => {
             console.log('decoded=', decoded)
             if (decoded.ali && decoded.ali.app_auth_token) {
-                let reqObj = get_req_obj(data)
+                let reqObj = get_req_obj(sock, data, decoded)
                 reqObj.auth_code = data.auth_code
                 reqObj.scene = "bar_code"
                 ali_pay.trade_pay(JSON.stringify(reqObj), decoded.ali.app_auth_token, (err, res) => {
