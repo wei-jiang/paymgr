@@ -10,7 +10,6 @@
     "build": "node build/build.js"
   },
   "dependencies": {
-    "download-csv": "^1.1.1",
     "lodash": "^4.17.4",
     "moment": "^2.20.1",
     "noty": "^3.1.3",

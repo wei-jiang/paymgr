@@ -99,7 +99,6 @@ export default {
   name: "HomePage",
   beforeRouteEnter(to, from, next) {
     sessionStorage.getItem("usr_token") ? next() : next("/login");
-    console.log("beforeRouteEnter");
   },
   data() {
     return {
@@ -239,7 +238,7 @@ export default {
     }
   },
   mounted() {
-    console.log("mounted");
+    // console.log("mounted");
     this.get_mchs();
   }
 };

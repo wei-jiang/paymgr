@@ -10,6 +10,35 @@ function download_text(filename, text) {
     element.click();
     document.body.removeChild(element);
 }
+function download_csv(filename, text) {
+    let element = document.createElement('a');
+    element.setAttribute('href', 'data:text/csv;charset=utf-8,%EF%BB%BF' + encodeURIComponent(text));
+    element.setAttribute('download', filename);
+    element.style.display = 'none';
+    document.body.appendChild(element);
+    element.click();
+    document.body.removeChild(element);
+}
+function download_csv1(filename, text) {
+    let element = document.createElement('a');
+    let BOM = "\uFEFF"; 
+    text = BOM + text;
+    element.setAttribute('href', 'data:text/csv;charset=utf-8,' + encodeURIComponent(text));
+    element.setAttribute('download', filename);
+    element.style.display = 'none';
+    document.body.appendChild(element);
+    element.click();
+    document.body.removeChild(element);
+}
+
+function download_url(url) {
+    let element = document.createElement('a');
+    element.setAttribute('href', url);
+    element.style.display = 'none';
+    document.body.appendChild(element);
+    element.click();
+    document.body.removeChild(element);
+}
 function show_noty(msg) {
     new Noty({
         layout: 'center',
@@ -38,6 +67,9 @@ function hash_str(str){
     return hash;
 }
 export default {
+    download_url,
+    download_csv,
+    download_csv1,
     download_text,
     show_noty,
     show_confirm,

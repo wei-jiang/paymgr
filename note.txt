@@ -1,8 +1,9 @@
 vue init vuetifyjs/pwa rules
 
+must run in nodejs 8.x lts
 npm i --python=C:\Python27\python.exe --msvs_version=2015
 
-pm2 start app.js -i 2 --name "paymgr" --max-restarts 1
+pm2 start app.js -i 2 --name "paymgr" --max-restarts 2
 pm2 reload paymgr --kill-timeout 3000
 pm2 restart paymgr
 pm2 stop paymgr

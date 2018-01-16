@@ -6,9 +6,9 @@
 </template>
 
 <script>
-import QRious from "qrious";
-import downloadCsv from 'download-csv';
-import { creatCsvFile, downloadFile, detectionClientType } from 'download-csv';
+import QRious from "qrious"
+
+import moment from 'moment'
 import net from "../net";
 import util from "../common/util";
 
@@ -19,7 +19,8 @@ export default {
   },
   data() {
     return {
-      usr_token: ''
+      sel_mch:'',
+      sel_date: ''
     };
   },
   computed: {
@@ -38,12 +39,19 @@ export default {
       util.show_noty(`您尚未登陆，请登录后操作`);
     },
     dn_csv() {
+      if(!this.sel_mch) return util.show_noty(`请选择商户`);
+      if(!this.sel_date) return util.show_noty(`请选择日期`);
       net.emit_with_usr_token("dl_wx_bill", {
         sub_mch_id:'1496133062',
-        bill_date:'20180115'
+        bill_date: this.sel_date
       }, res => {
         if (res.ret == 0) {
-          util.download_csv('aaa.csv', res.data )
+          // console.log(res)
+          // window.open(res.to_url)
+          //below all valid
+          util.download_csv(`wxpay_${this.sel_date}`, res.data)
+          // util.download_csv1('bbb.csv', res.data)
+          // util.download_url(res.to_url)
         } else {
           this.to_login()
         }
@@ -52,7 +60,7 @@ export default {
     
   },
   mounted() {
-
+    this.sel_date = moment().add(-1, 'days').format("YYYY-MM-DD")
   }
 };
 </script>

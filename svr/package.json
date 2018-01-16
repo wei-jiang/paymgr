@@ -17,6 +17,7 @@
     "express-session": "^1.15.6",
     "express-xml-bodyparser": "^0.3.0",
     "helmet": "^3.9.0",
+    "iconv-lite": "^0.4.19",
     "ioredis": "^3.2.2",
     "java": "^0.9.0",
     "jsonwebtoken": "^8.1.0",

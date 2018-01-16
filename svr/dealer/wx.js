@@ -3,6 +3,9 @@ const moment = require('moment');
 const _ = require('lodash');
 const iconv = require('iconv-lite');
 const credential = require('../secret')
+const mongo = require('mongodb'),
+    ObjectId = mongo.ObjectID,
+    Binary = mongo.Binary;
 
 const WXPay = require('wxpay.js').WXPay;
 const WXPayConstants = require('wxpay.js').WXPayConstants;
@@ -54,8 +57,8 @@ function req_micropay(sock, data, cb) {
         })
         .then(res => {
             // console.log(res);
-            if(res.return_code == 'SUCCESS'){
-                if(res.result_code == 'SUCCESS'){
+            if (res.return_code == 'SUCCESS') {
+                if (res.result_code == 'SUCCESS') {
                     cb({
                         ret: 0,
                         msg: '支付成功'
@@ -63,12 +66,12 @@ function req_micropay(sock, data, cb) {
                     data.trade_type = '微信反扫';
                     delete data.token;
                     m_db.collection('orders').insert(data)
-                } else if(res.result_code == 'USERPAYING'){
+                } else if (res.result_code == 'USERPAYING') {
                     cb({
                         ret: -1,
                         msg: '等待用户付款（请稍候）'
                     });
-                } else if(res.result_code == 'SYSTEMERROR'){
+                } else if (res.result_code == 'SYSTEMERROR') {
                     cb({
                         ret: -1,
                         msg: '系统超时（请稍候）'
@@ -82,7 +85,7 @@ function req_micropay(sock, data, cb) {
                     msg: '支付失败（网络错误）'
                 });
             }
-            
+
             // cb(res);
         })
         .catch(err => {
@@ -95,7 +98,7 @@ function req_micropay(sock, data, cb) {
 }
 
 function req_wxpay_qr(sock, data, cb) {
-    util.verify_req(data, () => data.cli_id )
+    util.verify_req(data, () => data.cli_id)
         .then(decoded => {
             let reqObj = get_req_obj(sock, data, decoded)
             reqObj.trade_type = 'NATIVE';
@@ -105,7 +108,7 @@ function req_wxpay_qr(sock, data, cb) {
             // console.log(res);
             data.cli_id = data.cli_id
             data["pay_status"] = "invalid",
-            data.sock_status = 'valid'
+                data.sock_status = 'valid'
             data.sock_id = sock.id;
             data.createdAt = new Date();
             data.trade_type = '微信正扫';
@@ -135,7 +138,7 @@ function order_query(sock, data, cb) {
         })
         .then(res => {
             // console.log(res);
-            
+
             cb(res);
         })
         .catch(err => {
@@ -152,40 +155,35 @@ function dl_wx_bill(sock, data, cb) {
         bill_type: 'ALL',
         bill_date: data.bill_date
     }
-    util.verify_usr(data)
-        .then(decoded => {                 
-            return m_db.collection('temp').findOne({"csv_id": util.hash_str(JSON.stringify(reqObj) )})                      
-            return wxpay.downloadBill(reqObj)
-        })
-        .then( csv => {
-            console.log('find cached csv', csv)
+    const get_bill_csv = async () => {
+        try {
+            let decoded = await util.verify_usr(data)
+            const csv_id = util.hash_str(JSON.stringify(reqObj))
+            let csv = await m_db.collection('temp').findOne({ csv_id })
+            // console.log('find cached csv', csv)
             if (csv) {
-                res.end('success');
+                const to_url = `/wx_bill?csv_id=${csv._id}`
+                cb({ ret: 0, to_url, data: csv.csv_str });
             } else {
-                setImmediate(_.partial(find_and_delete, data))
+                let res = await wxpay.downloadBill(reqObj)
+                if (res.return_code == 'SUCCESS') {
+                    const csv_str = res.data
+                    const csv_buff = Binary( Buffer.from(csv_str) )
+                    //sava to temp collection waiting for fetched by client
+                    const new_csv = await m_db.collection('temp').insertOne({ csv_id, csv_str, csv_buff, name:`wxpay_${data.bill_date}` })
+                    const to_url = `/wx_bill?csv_id=${new_csv.insertedId}`
+                    cb({ ret: 0, to_url, data: res.data });
+                } else {
+                    throw res.return_msg
+                }
             }
-        }) 
-        .then(res => {
-            // console.log(res);
-            if(res.return_code == 'SUCCESS'){
-                cb({
-                    ret: 0,
-                    data: res.data
-                });
-            } else {
-                cb({
-                    ret: -1,
-                    msg: res.return_msg
-                });
-            }   
-        })
-        .catch(err => {
-            // console.log(err);
-            cb({
-                ret: -1,
-                msg: err
-            })
-        });
+        } catch (err) {
+            // console.log( err )
+            cb({ ret: -1, msg: err });
+        }
+        return "done"
+    }
+    get_bill_csv()
 }
 // const reqObj = {
 //     openid:"ok7PPv1TI3LbP6ixCdOW3Dv_Vo14",
@@ -205,6 +203,32 @@ function dl_wx_bill(sock, data, cb) {
 // });
 //mdb && winston is global
 function deal_wx_pay(app, io) {
+    app.get('/wx_bill', (req, res) => {
+        const csv_id = req.query.csv_id
+        // console.log('in /wx_bill', req.query)
+        const download_csv = async () => {
+            try {
+                let csv = await m_db.collection('temp').findOne({ _id: new ObjectId(csv_id) })
+                // console.log('find cached csv', csv)
+                if (csv) {
+                    const cached_csv_str = csv.csv_str;
+                    const cached_csv_buff = csv.csv_buff.buffer;
+                    res.header('Content-type', 'text/csv; charset=utf-8');
+                    // res.header('Content-Length', content.length);
+                    res.header('Content-disposition', `attachment; filename=${csv.name}.csv`);
+                    res.write(new Buffer('EFBBBF', 'hex')); // BOM header
+                    //can not use res.send(...)
+                    res.end(cached_csv_buff) //or cached_csv_str
+                } else {
+                    throw 'can not find csv'
+                }
+            } catch (err) {
+                res.end(err)
+            }
+            return "done"
+        }
+        download_csv()        
+    })
     app.post('/wx_notify', (req, res) => {
         let resp = req.body.xml;
         // console.log("wx qr pay callback...");
@@ -216,7 +240,7 @@ function deal_wx_pay(app, io) {
             console.log('notify pay failed', resp.result_code[0]);
             winston.error('notify pay failed', resp.result_code[0]);
             res.end('success');
-        }  
+        }
     });
     io.on('connection', socket => {
         socket.on('req_wxpay_qr', (data, cb) => req_wxpay_qr(socket, data, cb));
