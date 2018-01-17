@@ -13,4 +13,6 @@ pm2 delete paymgr
 Kill daemon pm2 :
 $ pm2 kill
 
+db.orders.find({total_fee:{$gt:100}})
+
 docker run --privileged -d --name ub --net=host -v /data/share:/data -v /etc/letsencrypt:/etc/letsencrypt --entrypoint /usr/bin/supervisord ub16_2018_01_14_

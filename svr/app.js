@@ -250,7 +250,7 @@ io.on('connection', socket => {
                 cb({ ret: 0, orders })
             })  
             .catch(err => {
-                cb({ ret: -1, err })
+                cb({ ret: -1, msg: err })
             })
 
     });

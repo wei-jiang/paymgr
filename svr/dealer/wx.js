@@ -126,28 +126,88 @@ function req_wxpay_qr(sock, data, cb) {
         });
 }
 
-//here 
-function order_query(sock, data, cb) {
-    util.verify_usr(data)
-        .then(decoded => {
+//here
+function refund(sock, data, cb) {
+    (async () => {
+        try{
+            let usr = await util.verify_usr(data)
+            let reqObj = {
+                sub_mch_id: data.sub_mch_id,
+                out_trade_no: data.out_trade_no,
+                out_refund_no: data.out_refund_no,
+                total_fee: data.total_fee,
+                refund_fee: data.total_fee
+            }
+            let res = await wxpay.refund(reqObj)
+            if(res.return_code === 'SUCCESS'){
+                if(res.result_code === 'SUCCESS'){
+                    cb({ ret: 0, msg: '退款申请成功' });                
+                } else{
+                    throw res.err_code_des
+                }
+            } else{
+                throw res.return_msg
+            }
+        } catch (err) {
+            console.log( err )
+            cb({ ret: -1, msg: err });
+        }
+        return "done"
+    })()    
+} 
+function reverse(sock, data, cb) {
+    (async () => {
+        try{
+            let usr = await util.verify_usr(data)
             let reqObj = {
                 sub_mch_id: data.sub_mch_id,
                 out_trade_no: data.out_trade_no
             }
-            return wxpay.orderQuery(reqObj)
-        })
-        .then(res => {
-            // console.log(res);
-
-            cb(res);
-        })
-        .catch(err => {
-            console.log(err);
-            cb({
-                ret: -1,
-                msg: err
-            })
-        });
+            let res = await wxpay.reverse(reqObj)
+            if(res.return_code === 'SUCCESS'){
+                if(res.result_code === 'SUCCESS'){
+                    cb({ ret: 0, msg: '撤销成功' });                
+                } else{
+                    throw res.err_code_des
+                }
+            } else{
+                throw res.return_msg
+            }
+        } catch (err) {
+            console.log( err )
+            cb({ ret: -1, msg: err });
+        }
+        return "done"
+    })()    
+} 
+function order_query(sock, data, cb) {
+    (async () => {
+        try{
+            let usr = await util.verify_usr(data)
+            let reqObj = {
+                sub_mch_id: data.sub_mch_id,
+                out_trade_no: data.out_trade_no
+            }
+            let res = await wxpay.orderQuery(reqObj)
+            if(res.return_code === 'SUCCESS'){
+                if(res.result_code === 'SUCCESS'){
+                    if(res.trade_state === 'SUCCESS'){
+                        cb({ ret: 0, msg: '支付成功' });
+                    } else {
+                        throw res.err_code_des
+                    }                    
+                } else{
+                    throw res.trade_state_desc
+                }
+            } else{
+                throw '网络错误'
+            }
+        } catch (err) {
+            console.log( err )
+            cb({ ret: -1, msg: err });
+        }
+        return "done"
+    })()    
 }
 function dl_wx_bill(sock, data, cb) {
     let reqObj = {
@@ -247,6 +307,8 @@ function deal_wx_pay(app, io) {
         socket.on('wx_auth_pay', (data, cb) => req_micropay(socket, data, cb));
         socket.on('wx_order_query', (data, cb) => order_query(socket, data, cb));
         socket.on('dl_wx_bill', (data, cb) => dl_wx_bill(socket, data, cb));
+        socket.on('wx_reverse', (data, cb) => reverse(socket, data, cb));
+        socket.on('wx_refund', (data, cb) => refund(socket, data, cb));
     });
 }
 module.exports = deal_wx_pay;
