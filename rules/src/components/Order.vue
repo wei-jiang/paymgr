@@ -77,7 +77,18 @@ export default {
         );
       } else {
         //ali order
-        util.show_noty(`支付宝订单查询功能开发中……`);
+        net.emit_with_usr_token( "ali_order_query", {
+                out_trade_no: o.out_trade_no
+            },  res => {
+            if (res.ret == 0) {
+              console.log(`查询支付宝订单成功`,res)
+              util.show_noty(`${res.msg}`);
+            } else {
+              console.log(`查询支付宝订单失败`,res)
+              util.show_noty(`查询支付宝订单失败：${res.msg}`);
+            }
+          }
+        );
       }
     },
     reverse_order(o){
@@ -97,7 +108,18 @@ export default {
         );
       } else {
         //ali order
-        util.show_noty(`支付宝订单撤销功能开发中……`);
+        net.emit_with_usr_token( "ali_reverse", {
+                out_trade_no: o.out_trade_no
+            },  res => {
+            if (res.ret == 0) {
+              console.log(`撤销支付宝订单成功`,res)
+              util.show_noty(`${res.msg}`);
+            } else {
+              console.log(`撤销支付宝订单失败`,res)
+              util.show_noty(`撤销支付宝订单失败：${res.msg}`);
+            }
+          }
+        );
       }
     },
     refund(o){

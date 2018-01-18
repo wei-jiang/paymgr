@@ -16,6 +16,7 @@ cert/
 svr/public/
 kotlin_bridge/build/
 kotlin_bridge/bin/
+kotlin_bridge/.gradle/
 *.pid
 *.seed
 *.pid.lock
@@ -67,4 +68,3 @@ test*
 secret.*
 # dotenv environment variables file
 .env
-

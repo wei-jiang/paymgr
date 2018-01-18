@@ -63,7 +63,93 @@ function deal_aly_pay(app, io) {
     io.on('connection', socket => {
         socket.on('req_alipay_qr', (data, cb) => req_alipay_qr(socket, data, cb));
         socket.on('ali_auth_pay', (data, cb) => req_auth_pay(socket, data, cb));
+        socket.on('ali_order_query', (data, cb) => order_query(socket, data, cb));
+        socket.on('ali_reverse', (data, cb) => reverse(socket, data, cb));
+        socket.on('ali_refund', (data, cb) => refund(socket, data, cb));
     });
+}
+//here
+function refund(sock, data, cb) {
+    (async () => {
+        try{
+            let usr = await util.verify_usr(data)
+            let reqObj = {
+                out_trade_no: data.out_trade_no
+            }
+            let res = await ali_pay.trade_cancelPomise( JSON.stringify(reqObj) )
+            res = JSON.parse(res).alipay_trade_cancel_response;
+            if(res.code === '10000'){
+                if(res.action === 'close'){
+                    cb({ ret: 0, msg: '撤销成功（交易关闭）' });                   
+                } else if(res.action === 'refund'){
+                    cb({ ret: 0, msg: '撤销成功（已退款）' });
+                } else{
+                    throw '撤销成功（未知操作）'
+                }
+            } else{
+                throw `${res.msg}(${res.sub_msg})`
+            }
+        } catch (err) {
+            console.log( err )
+            cb({ ret: -1, msg: err });
+        }
+        return "done"
+    })()    
+} 
+function reverse(sock, data, cb) {
+    (async () => {
+        try{
+            let usr = await util.verify_usr(data)
+            let reqObj = {
+                out_trade_no: data.out_trade_no
+            }
+            let res = await ali_pay.trade_cancelPomise( JSON.stringify(reqObj) )
+            res = JSON.parse(res).alipay_trade_cancel_response;
+            if(res.code === '10000'){
+                if(res.action === 'close'){
+                    cb({ ret: 0, msg: '撤销成功（交易关闭）' });                   
+                } else if(res.action === 'refund'){
+                    cb({ ret: 0, msg: '撤销成功（已退款）' });
+                } else{
+                    throw '撤销成功（未知操作）'
+                }
+            } else{
+                throw `${res.msg}(${res.sub_msg})`
+            }
+        } catch (err) {
+            console.log( err )
+            cb({ ret: -1, msg: err });
+        }
+        return "done"
+    })()    
+} 
+function order_query(sock, data, cb) {
+    (async () => {
+        try{
+            let usr = await util.verify_usr(data)
+            let reqObj = {
+                out_trade_no: data.out_trade_no
+            }
+            let res = await ali_pay.trade_queryPomise( JSON.stringify(reqObj) )
+            res = JSON.parse(res).alipay_trade_query_response;
+            if(res.code === '10000'){
+                if(res.trade_status === 'TRADE_SUCCESS'
+                    || res.trade_status === 'TRADE_SUCCESS'){
+                    cb({ ret: 0, msg: '支付成功' });                   
+                } else if(res.trade_status === 'TRADE_CLOSED'){
+                    throw '交易已关闭'
+                } else{
+                    throw '未知状态'
+                }
+            } else{
+                throw `${res.msg}(${res.sub_msg})`
+            }
+        } catch (err) {
+            console.log( err )
+            cb({ ret: -1, msg: err });
+        }
+        return "done"
+    })()    
 }
 //把微信的请求格式转成ali的（客户端请求单位全部用 分）
 function get_req_obj(sock, data, decoded) {

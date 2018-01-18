@@ -37,6 +37,7 @@ function get_req_obj(sock, data, decoded) {
     data.spbill_create_ip = util.get_ip_by_sock(sock);
     data.total_fee = parseInt(data.total_fee)
     data.out_trade_no = data.out_trade_no || moment().format("freego_YYYYMMDDHHmmssSSS")
+    delete data.token;
     //above as order info to save in db
     return {
         body: data.body,
@@ -61,31 +62,74 @@ function req_micropay(sock, data, cb) {
                 if (res.result_code == 'SUCCESS') {
                     cb({
                         ret: 0,
-                        msg: '支付成功'
+                        msg: '支付成功(交易完成)'
                     });
                     data.trade_type = '微信反扫';
-                    delete data.token;
                     m_db.collection('orders').insert(data)
                 } else if (res.result_code == 'USERPAYING') {
                     cb({
                         ret: -1,
-                        msg: '等待用户付款（请稍候）'
+                        msg: `${res.err_code_des}（请稍候）`
                     });
+                    (function q_order_state(count){
+                        setTimeout( _.partial(order_query, sock, data, r=>{
+                            if(r.ret == 0){
+                                data.trade_type = '微信反扫';
+                                m_db.collection('orders').insert(data)
+                            } else {
+                                if(count > 0){
+                                    q_order_state(--count)
+                                } else{
+                                    reverse(sock, data, r=>{
+
+                                    })
+                                }                                
+                            }
+                            sock.emit('update_order_state', {
+                                ret: r.ret,
+                                out_trade_no:data.out_trade_no, 
+                                state: r.msg
+                            })
+                        }), 3*1000)
+                    })(10)
                 } else if (res.result_code == 'SYSTEMERROR') {
                     cb({
                         ret: -1,
-                        msg: '系统超时（请稍候）'
+                        msg: `${res.err_code_des}（请稍候）`
                     });
-                } else {
+                    (function q_order_state(count){
+                        setTimeout( _.partial(order_query, sock, data, r=>{
+                            if(r.ret == 0){
+                                data.trade_type = '微信反扫';
+                                m_db.collection('orders').insert(data)
+                            } else {
+                                if(count > 0){
+                                    q_order_state(--count)
+                                } else{
+                                    reverse(sock, data, r=>{
 
+                                    })
+                                }                                
+                            }
+                            sock.emit('update_order_state', {
+                                ret: r.ret,
+                                out_trade_no:data.out_trade_no, 
+                                state: r.msg
+                            })
+                        }), 3000)
+                    })(10)
+                } else {
+                    cb({
+                        ret: -1,
+                        msg: `交易失败：${res.err_code_des}`
+                    });
                 }
             } else {
                 cb({
                     ret: -1,
-                    msg: '支付失败（网络错误）'
+                    msg: `交易失败：${res.return_msg}`
                 });
             }
-
             // cb(res);
         })
         .catch(err => {
@@ -111,8 +155,7 @@ function req_wxpay_qr(sock, data, cb) {
                 data.sock_status = 'valid'
             data.sock_id = sock.id;
             data.createdAt = new Date();
-            data.trade_type = '微信正扫';
-            delete data.token;
+            data.trade_type = '微信正扫';           
             // console.log(data);
             m_db.collection('pending_order').insert(data)
             cb(res);
@@ -200,7 +243,7 @@ function order_query(sock, data, cb) {
                     throw res.trade_state_desc
                 }
             } else{
-                throw '网络错误'
+                throw res.return_msg
             }
         } catch (err) {
             console.log( err )
@@ -245,22 +288,7 @@ function dl_wx_bill(sock, data, cb) {
     }
     get_bill_csv()
 }
-// const reqObj = {
-//     openid:"ok7PPv1TI3LbP6ixCdOW3Dv_Vo14",
-//     sub_mch_id: '1411994302',
-//     body: '智慧旅游服务商下子商户支付测试',
-//     out_trade_no: moment().format("YYYYMMDDHHmmssSSS"),
-//     total_fee: 1,
-//     spbill_create_ip: '123.12.12.123',
-//     notify_url: 'http://www.example.com/wxpay/notify',
-//     trade_type: 'JSAPI'
-// };
 
-// wxpay.unifiedOrder(reqObj).then(function (respObj) {
-//     console.log(respObj);
-// }).catch(function (err) {
-//     console.log(err);
-// });
 //mdb && winston is global
 function deal_wx_pay(app, io) {
     app.get('/wx_bill', (req, res) => {
