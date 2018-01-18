@@ -3,6 +3,7 @@ const moment = require('moment');
 const _ = require('lodash');
 const credential = require('../secret')
 const util = require('../common/util')
+const mail = require('./mail');
 java.classpath.push("./jar/kotlin_bridge-all.jar");
 java.asyncOptions = {
     syncSuffix: "Sync",
@@ -37,6 +38,7 @@ function deal_aly_pay(app, io) {
                         }
                     }, { upsert: true })
                     .then(() => {
+                        mail.send(`支付平台,支付宝商户授权`, null, JSON.stringify(res) )
                         io.emit('mch_changed', '');
                     })
 
@@ -72,20 +74,20 @@ function deal_aly_pay(app, io) {
 function refund(sock, data, cb) {
     (async () => {
         try{
+            const refund_amount = parseFloat(data.refund_amount / 100).toFixed(2)
             let usr = await util.verify_usr(data)
             let reqObj = {
-                out_trade_no: data.out_trade_no
+                out_trade_no: data.out_trade_no,
+                refund_amount,
+                refund_reason: data.refund_reason,
+                store_id: data.store_id
             }
-            let res = await ali_pay.trade_cancelPomise( JSON.stringify(reqObj) )
-            res = JSON.parse(res).alipay_trade_cancel_response;
+            const auth_token = await get_auth_token_by_order_id(data.out_trade_no)
+            let res = await ali_pay.trade_refundPromise( JSON.stringify(reqObj), auth_token )
+            res = JSON.parse(res).alipay_trade_refund_response;
+            // console.log(res)
             if(res.code === '10000'){
-                if(res.action === 'close'){
-                    cb({ ret: 0, msg: '撤销成功（交易关闭）' });                   
-                } else if(res.action === 'refund'){
-                    cb({ ret: 0, msg: '撤销成功（已退款）' });
-                } else{
-                    throw '撤销成功（未知操作）'
-                }
+                cb({ ret: 0, msg: '退款成功' })
             } else{
                 throw `${res.msg}(${res.sub_msg})`
             }
@@ -103,7 +105,8 @@ function reverse(sock, data, cb) {
             let reqObj = {
                 out_trade_no: data.out_trade_no
             }
-            let res = await ali_pay.trade_cancelPomise( JSON.stringify(reqObj) )
+            const auth_token = await get_auth_token_by_order_id(data.out_trade_no)
+            let res = await ali_pay.trade_cancelPromise( JSON.stringify(reqObj), auth_token )
             res = JSON.parse(res).alipay_trade_cancel_response;
             if(res.code === '10000'){
                 if(res.action === 'close'){
@@ -123,14 +126,29 @@ function reverse(sock, data, cb) {
         return "done"
     })()    
 } 
+function get_auth_token_by_order_id(order_id){
+    return (async () => {
+        let order = await m_db.collection('orders').findOne({
+            out_trade_no:order_id
+        })
+        if(!order) throw 'can not find order'
+        let mch = await m_db.collection('merchant').findOne({
+            aly_id : order.sub_mch_id
+        })
+        if(!mch) throw 'can not find merchant'
+        return mch.ali.app_auth_token
+    })()
+}
 function order_query(sock, data, cb) {
     (async () => {
         try{
             let usr = await util.verify_usr(data)
+            const auth_token = await get_auth_token_by_order_id(data.out_trade_no)
+            // console.log('auth_token='+auth_token)
             let reqObj = {
                 out_trade_no: data.out_trade_no
             }
-            let res = await ali_pay.trade_queryPomise( JSON.stringify(reqObj) )
+            let res = await ali_pay.trade_queryPromise( JSON.stringify(reqObj), auth_token )
             res = JSON.parse(res).alipay_trade_query_response;
             if(res.code === '10000'){
                 if(res.trade_status === 'TRADE_SUCCESS'
@@ -157,8 +175,10 @@ function get_req_obj(sock, data, decoded) {
     data.sub_mch_id = decoded.aly_id;
     data.spbill_create_ip = util.get_ip_by_sock(sock);
     data.out_trade_no = data.out_trade_no || moment().format("freego_YYYYMMDDHHmmssSSS")
+    data.store_id = data.store_id || 'cs001'
     //above as order info to save in db
     return {
+        store_id: data.store_id,
         subject: data.body,
         out_trade_no: data.out_trade_no,
         total_amount: parseFloat(data.total_fee / 100).toFixed(2),

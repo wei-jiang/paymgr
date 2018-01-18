@@ -10,6 +10,7 @@ import com.alipay.api.request.AlipayTradePayRequest;
 import com.alipay.api.request.AlipayTradeQueryRequest;
 import com.alipay.api.request.AlipayTradeCancelRequest;
 import com.alipay.api.request.AlipayTradeRefundRequest;
+import com.alipay.api.request.AlipayOpenAuthTokenAppRequest;
 
 import com.alipay.api.domain.AlipayTradeWapPayModel;
 import com.alipay.api.domain.AlipayTradeCreateModel;
@@ -49,20 +50,30 @@ class AliPay {
         val response = alipayClient.execute(request);
         return response.getBody()
     }
-    fun trade_query(json: String):String {
+    
+    fun get_auth_token(json: String):String {
+        val request = AlipayOpenAuthTokenAppRequest();
+        request.setBizContent( json );
+        val response = alipayClient.execute(request);
+        return response.getBody()
+    }
+    fun trade_query(json: String, auth_token: String):String {
         val request = AlipayTradeQueryRequest();
+        request.putOtherTextParam("app_auth_token", auth_token);
         request.setBizContent( json );
         val response = alipayClient.execute(request);
         return response.getBody()
     }
-    fun trade_cancel(json: String):String {
+    fun trade_cancel(json: String, auth_token: String):String {
         val request = AlipayTradeCancelRequest();
+        request.putOtherTextParam("app_auth_token", auth_token);
         request.setBizContent( json );
         val response = alipayClient.execute(request);
         return response.getBody()
     }
-    fun trade_refund(json: String):String {
+    fun trade_refund(json: String, auth_token: String):String {
         val request = AlipayTradeRefundRequest();
+        request.putOtherTextParam("app_auth_token", auth_token);
         request.setBizContent( json );
         val response = alipayClient.execute(request);
         return response.getBody()

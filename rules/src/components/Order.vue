@@ -142,7 +142,21 @@ export default {
         );
       } else {
         //ali order
-        util.show_noty(`支付宝订单退款功能开发中……`);
+        net.emit_with_usr_token( "ali_refund", {
+                out_trade_no: o.out_trade_no,
+                refund_amount: o.total_fee,
+                refund_reason: '正常退款',
+                store_id: 'cs001'
+            },  res => {
+            if (res.ret == 0) {
+              console.log(`支付宝订单退款成功`,res)
+              util.show_noty(`${res.msg}`);
+            } else {
+              console.log(`支付宝订单退款失败`,res)
+              util.show_noty(`支付宝订单退款失败：${res.msg}`);
+            }
+          }
+        );
       }
     },
     to_login(){
