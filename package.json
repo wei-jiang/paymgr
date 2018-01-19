@@ -5,6 +5,7 @@
   "main": "gulpfile.js",
   "scripts": {
     "rules": "cd rules && npm run build",
+    "mobile": "cd mobile && npm run build",
     "jar": "cd kotlin_bridge && gradle build",
     "node": "cd ./svr && node ./app.js",
     "release": "cd svr && sh relkub.sh"

@@ -8,6 +8,7 @@ const mongo = require('mongodb'),
     Binary = mongo.Binary;
 
 const WXPay = require('wxpay.js').WXPay;
+const WXPayUtil = require('wxpay.js').WXPayUtil;
 const WXPayConstants = require('wxpay.js').WXPayConstants;
 
 const util = require('../common/util')
@@ -151,14 +152,15 @@ function js_prepay(sock, data, cb) {
             let res = await wxpay.unifiedOrder(reqObj)
             if(res.return_code === 'SUCCESS'){
                 if(res.result_code === 'SUCCESS'){
-                    cb({ ret: 0, prepay: {
+                    let prepay = {
                         appId:res.appid,
                         timeStamp: (new Date).getTime().toString(),
                         nonceStr:res.nonce_str,
                         signType: WXPayConstants.SIGN_TYPE_HMACSHA256,
-                        package:`prepay_id=${res.prepay_id}`},
-                        paySign:'todo'
-                    });                
+                        package:`prepay_id=${res.prepay_id}`
+                    }
+                    prepay.paySign = WXPayUtil.generateSignature(prepay, credential.wx_KEY, WXPayConstants.SIGN_TYPE_HMACSHA256)
+                    cb({ ret: 0, prepay });          
                 } else{
                     throw res.err_code_des
                 }

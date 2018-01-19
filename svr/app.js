@@ -113,7 +113,27 @@ app.get('/headers', function (req, res) {
     let data = req.headers;
     res.end( JSON.stringify(data) );
 });
-
+app.get('/mobile', function (req, res) {
+    let ua = req.headers['user-agent'];
+    let is_wx_agent = /MicroMessenger/i.test(ua);
+    if (!is_wx_agent) {
+        return res.redirect('http://www.baidu.com');
+    }
+    var openid = req.query.oid;
+    if (!openid) {
+        const qs = querystring.stringify({
+            rurl: 'http://pay.cninone.com/mobile'
+        });
+        let r_url = `https://wx.ily365.cn/oid?${qs}`;
+        // console.log(r_url);
+        res.redirect(r_url);
+    } else {
+        res.render('mobile.html', {
+            type:'wx',
+            usr_id:openid
+        });
+    }
+});
 // app.post('/test_notify', (req, res) => {
 //     let resp = req.body;
 //     console.log('test_notify=' + JSON.stringify(resp));
