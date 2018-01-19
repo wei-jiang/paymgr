@@ -88,6 +88,7 @@ function refund(sock, data, cb) {
             // console.log(res)
             if(res.code === '10000'){
                 cb({ ret: 0, msg: '退款成功' })
+                util.change_order_state_to_refund(data.out_trade_no)
             } else{
                 throw `${res.msg}(${res.sub_msg})`
             }
@@ -113,6 +114,7 @@ function reverse(sock, data, cb) {
                     cb({ ret: 0, msg: '撤销成功（交易关闭）' });                   
                 } else if(res.action === 'refund'){
                     cb({ ret: 0, msg: '撤销成功（已退款）' });
+                    util.change_order_state_to_refund(data.out_trade_no)
                 } else{
                     throw '撤销成功（未知操作）'
                 }

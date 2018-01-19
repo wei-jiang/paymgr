@@ -16,15 +16,22 @@
           <v-btn color="primary" @click="dn_csv">下载微信对账单</v-btn>
         </v-toolbar-items>
       </v-toolbar>
-      
-      <v-layout row v-for="o in orders" >
-        <v-flex>{{o.out_trade_no}}</v-flex>
-        <v-flex>{{o.body}}</v-flex>
-        <v-flex>{{parseFloat(o.total_fee/100).toFixed(2)+'(元)'}}</v-flex>
-        <v-flex>{{o.trade_type}}</v-flex>
+      <v-layout row style="background-color:#777">
+        <div style="width:200px;">订单号</div>
+        <div style="width:300px;">名称</div>
+        <div style="width:100px;">价格</div>
+        <div style="width:200px;">支付类型</div>
+        <div style="width:100px;">状态</div>
+      </v-layout>
+      <v-layout row v-for="o in orders" style="border:1px dashed purple">
+        <div style="width:200px;">{{o.out_trade_no}}</div>
+        <div style="width:300px;">{{o.body}}</div>
+        <div style="width:100px;">{{parseFloat(o.total_fee/100).toFixed(2)+'(元)'}}</div>
+        <div style="width:200px;">{{o.trade_type}}</div>
+        <div style="width:100px;">{{o.state}}</div>
         <v-btn color="info" @click="query_order(o)">查询</v-btn>
-        <v-btn color="warning" @click="reverse_order(o)">撤销</v-btn>
-        <v-btn color="error" @click="refund(o)">退款</v-btn>
+        <v-btn v-if="o.state==='已支付'" color="warning" @click="reverse_order(o)">撤销</v-btn>
+        <v-btn v-if="o.state==='已支付'" color="error" @click="refund(o)">退款</v-btn>
       </v-layout>
       
     </div>     

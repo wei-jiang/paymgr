@@ -192,7 +192,7 @@ export default {
     },
     gen_token() {
       if( this.is_filled() ){
-        net.emit('req_token', this.mch, token=>{
+        net.emit_with_usr_token('req_token', this.mch, token=>{
           this.token = token
         })
 
@@ -203,7 +203,7 @@ export default {
     },
     add_mch() {
       if( this.is_filled() ){
-        net.emit('add_mch', this.mch)
+        net.emit_with_usr_token('add_mch', this.mch)
         this.clear()
       } else {
         util.show_noty('请填写商户信息')

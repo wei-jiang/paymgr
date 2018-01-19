@@ -15,13 +15,16 @@ class Net {
         this.sock.on('connect', this.on_connect.bind(this));
         this.sock.on('mch_changed', this.on_mch_changed.bind(this));
         this.sock.on('pay_result', this.on_pay_result.bind(this));
+        this.sock.on('need_login_first', this.on_need_login_first.bind(this));
     }
     register_ui_evt() {
         vm.$on("notify_seller_status", data => {
             this.emit('notify_seller_status', data)
         });
     }
-    
+    on_need_login_first(){
+        util.show_noty('需登录后操作')
+    }
     on_connect() {
         this.register_ui_evt()
         console.log('on_connect to socket.io server');

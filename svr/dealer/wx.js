@@ -140,7 +140,38 @@ function req_micropay(sock, data, cb) {
             })
         });
 }
-
+function js_prepay(sock, data, cb) {
+    // const to_url = `https://wx.ily365.cn/oid?rurl=${get_myurl_by_sock(sock)}/mobile`
+    (async () => {
+        try{
+            let decoded = await util.verify_req(data)
+            let reqObj = get_req_obj(sock, data, decoded)
+            reqObj.trade_type = 'JSAPI';            
+            delete reqObj.notify_url;
+            let res = await wxpay.unifiedOrder(reqObj)
+            if(res.return_code === 'SUCCESS'){
+                if(res.result_code === 'SUCCESS'){
+                    cb({ ret: 0, prepay: {
+                        appId:res.appid,
+                        timeStamp: (new Date).getTime().toString(),
+                        nonceStr:res.nonce_str,
+                        signType: WXPayConstants.SIGN_TYPE_HMACSHA256,
+                        package:`prepay_id=${res.prepay_id}`},
+                        paySign:'todo'
+                    });                
+                } else{
+                    throw res.err_code_des
+                }
+            } else{
+                throw res.return_msg
+            }
+        } catch (err) {
+            // console.log( err )
+            cb({ ret: -1, msg: err });
+        }
+        return "done"
+    })()    
+}
 function req_wxpay_qr(sock, data, cb) {
     util.verify_req(data, () => data.cli_id)
         .then(decoded => {
@@ -337,6 +368,7 @@ function deal_wx_pay(app, io) {
         socket.on('dl_wx_bill', (data, cb) => dl_wx_bill(socket, data, cb));
         socket.on('wx_reverse', (data, cb) => reverse(socket, data, cb));
         socket.on('wx_refund', (data, cb) => refund(socket, data, cb));
+        socket.on('wx_js_prepay_id', (data, cb) => js_prepay(socket, data, cb));        
     });
 }
 module.exports = deal_wx_pay;

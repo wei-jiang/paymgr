@@ -270,7 +270,7 @@ io.on('connection', socket => {
     socket.on('add_mch', data => {
         // console.log('in req_token', data)
         util.verify_usr(data)
-            .then(usr => {
+            .then(usr => {                
                 return m_db.collection('merchant').insert(data)
             })
             .then(() => {

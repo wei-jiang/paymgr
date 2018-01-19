@@ -77,6 +77,8 @@ function verify_usr(data) {
                 if (err) {
                     reject(err)
                 } else {
+                    //remove token
+                    delete data.token;
                     resolve(decoded);
                 }
             })
@@ -84,6 +86,9 @@ function verify_usr(data) {
             reject('no login info presents')
         }        
     })
+}
+function change_order_state_to_refund(out_trade_no){
+    return m_db.collection('orders').updateOne({out_trade_no},{$set:{state:'已退款'}})
 }
 function notify_or_save_pay_result(order_id, resp, io, res) {
     function find_and_delete(data) {
@@ -100,6 +105,7 @@ function notify_or_save_pay_result(order_id, resp, io, res) {
                         sub_mch_id: o.sub_mch_id,
                         out_trade_no: o.out_trade_no,
                         total_fee: o.total_fee,
+                        state: '已支付',
                         spbill_create_ip: o.spbill_create_ip,
                         trade_type: o.trade_type,
                         time_begin: moment(o.createdAt).format("YYYY-MM-DD HH:mm:ss"),
@@ -156,5 +162,6 @@ module.exports = {
     verify_token,
     verify_req,
     verify_usr,
-    notify_or_save_pay_result
+    notify_or_save_pay_result,
+    change_order_state_to_refund
 }
