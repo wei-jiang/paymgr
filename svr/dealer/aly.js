@@ -16,6 +16,24 @@ const AliPay = java.import('freego.AliPay');
 const ali_pay = new AliPay()
 //winston is global
 function deal_aly_pay(app, io) {
+    app.get('/wap_pay', function (req, res) {
+        let data = req.query;
+        //to finish
+        (async () => {
+            try{
+                let reqObj = {
+                    out_trade_no: data.out_trade_no,
+                    refund_amount,
+                    refund_reason: data.refund_reason,
+                    store_id: data.store_id
+                }
+                let html = await ali_pay.wap_payPromise( JSON.stringify(reqObj), auth_token )
+            } catch (err) {
+
+            }
+            return "done"
+        })()  
+    })
     app.get('/authRedirect', function (req, res) {
         let data = req.query;
         // console.log(data)
@@ -207,7 +225,7 @@ function req_alipay_qr(sock, data, cb) {
                     } else {
                         res = JSON.parse(res).alipay_trade_precreate_response;
                         data.cli_id = data.cli_id
-                        data["pay_status"] = "invalid",
+                        data["pay_status"] = "invalid"
                         data.sock_status = 'valid'
                         data.sock_id = sock.id;
                         data.createdAt = new Date();

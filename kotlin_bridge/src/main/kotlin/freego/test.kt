@@ -50,7 +50,15 @@ class AliPay {
         val response = alipayClient.execute(request);
         return response.getBody()
     }
-    
+    fun wap_pay(json: String, auth_token: String, return_url: String, notify_url: String):String {
+        val request = AlipayTradeWapPayRequest();
+        request.putOtherTextParam("app_auth_token", auth_token);
+        request.setReturnUrl(return_url);
+        request.setNotifyUrl(notify_url);//在公共参数中设置回跳和通知地址
+        request.setBizContent( json );
+        val response = alipayClient.pageExecute(request);
+        return response.getBody()
+    }
     fun get_auth_token(json: String):String {
         val request = AlipayOpenAuthTokenAppRequest();
         request.setBizContent( json );

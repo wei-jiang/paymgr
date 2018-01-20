@@ -148,7 +148,7 @@ function js_prepay(sock, data, cb) {
             let decoded = await util.verify_req(data)
             let reqObj = get_req_obj(sock, data, decoded)
             reqObj.trade_type = 'JSAPI';            
-            delete reqObj.notify_url;
+            reqObj.openid = data.openid;
             let res = await wxpay.unifiedOrder(reqObj)
             if(res.return_code === 'SUCCESS'){
                 if(res.result_code === 'SUCCESS'){
@@ -160,6 +160,14 @@ function js_prepay(sock, data, cb) {
                         package:`prepay_id=${res.prepay_id}`
                     }
                     prepay.paySign = WXPayUtil.generateSignature(prepay, credential.wx_KEY, WXPayConstants.SIGN_TYPE_HMACSHA256)
+                    data.cli_id = data.openid
+                    data["pay_status"] = "invalid"
+                    data.sock_status = 'valid'
+                    data.sock_id = sock.id;
+                    data.createdAt = new Date();
+                    data.trade_type = '微信公众号';           
+                    // console.log(data);
+                    m_db.collection('pending_order').insert(data)
                     cb({ ret: 0, prepay });          
                 } else{
                     throw res.err_code_des
@@ -184,8 +192,8 @@ function req_wxpay_qr(sock, data, cb) {
         .then(res => {
             // console.log(res);
             data.cli_id = data.cli_id
-            data["pay_status"] = "invalid",
-                data.sock_status = 'valid'
+            data["pay_status"] = "invalid"
+            data.sock_status = 'valid'
             data.sock_id = sock.id;
             data.createdAt = new Date();
             data.trade_type = '微信正扫';           

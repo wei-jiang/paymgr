@@ -49,7 +49,7 @@ MongoClient.connect(credential.db_url)
     .then(client => {
         m_db = client.db(credential.db_name);
         m_db.collection('pending_order').createIndex({ "createdAt": 1 }, { expireAfterSeconds: 3600 })
-        m_db.collection('temp').createIndex({ "createdAt": 1 }, { expireAfterSeconds: 30*60 })
+        m_db.collection('temp').createIndex({ "createdAt": 1 }, { expireAfterSeconds: 30 * 60 })
         console.log('connect to mongodb(paymgr) success')
         const listen_port = app.get('port') + (parseInt(process.env.NODE_APP_INSTANCE) || 0);
         // console.log('listen_port='+ listen_port)
@@ -111,28 +111,41 @@ global.winston = new (winston.Logger)({
 
 app.get('/headers', function (req, res) {
     let data = req.headers;
-    res.end( JSON.stringify(data) );
+    res.end(JSON.stringify(data));
 });
-app.get('/mobile', function (req, res) {
+app.get('/mobile.html', function (req, res) {
+
     let ua = req.headers['user-agent'];
     let is_wx_agent = /MicroMessenger/i.test(ua);
-    if (!is_wx_agent) {
-        return res.redirect('http://www.baidu.com');
-    }
-    var openid = req.query.oid;
-    if (!openid) {
-        const qs = querystring.stringify({
-            rurl: 'http://pay.cninone.com/mobile'
-        });
-        let r_url = `https://wx.ily365.cn/oid?${qs}`;
-        // console.log(r_url);
-        res.redirect(r_url);
+    if (is_wx_agent) {
+        var openid = req.query.oid;
+        if (!openid) {
+            const qs = querystring.stringify({
+                rurl: `${util.get_myurl_by_req(req)}/mobile.html`
+            });
+            let r_url = `https://wx.ily365.cn/oid?${qs}`;
+            // console.log(r_url);
+            res.redirect(r_url);
+
+        } else {
+            console.log('get openid=%s', openid);
+            res.render('mobile.html', {
+                type: 'wx',
+                usr_id: openid
+            });
+        }
     } else {
+        //use ali pay
+        // let host = req.headers['host'];
+        // if (host.indexOf('localhost') >= 0 || host.indexOf('192.168.') >= 0) {
+
+        // }
         res.render('mobile.html', {
-            type:'wx',
-            usr_id:openid
+            type: 'ali',
+            usr_id: ''
         });
     }
+
 });
 // app.post('/test_notify', (req, res) => {
 //     let resp = req.body;
@@ -264,11 +277,11 @@ io.on('connection', socket => {
         // console.log('in req_token', data)
         util.verify_usr(data)
             .then(usr => {
-                return m_db.collection('orders').find({}).toArray()            
+                return m_db.collection('orders').find({}).toArray()
             })
-            .then(orders=>{
+            .then(orders => {
                 cb({ ret: 0, orders })
-            })  
+            })
             .catch(err => {
                 cb({ ret: -1, msg: err })
             })
@@ -290,7 +303,7 @@ io.on('connection', socket => {
     socket.on('add_mch', data => {
         // console.log('in req_token', data)
         util.verify_usr(data)
-            .then(usr => {                
+            .then(usr => {
                 return m_db.collection('merchant').insert(data)
             })
             .then(() => {
@@ -345,6 +358,22 @@ io.on('connection', socket => {
             })
             .catch(err => {
                 cb({ ret: -1, err })
+            })
+    });
+    socket.on('get_mchs_with_token', (data, cb) => {
+        m_db.collection('merchant').find({}).toArray()
+            .then(mchs => {
+                mchs = _.map(mchs, m => {
+                    return {
+                        name: m.name,
+                        token: util.sign_token(m)
+                    }
+                })
+                // console.log(mchs)
+                cb({ ret: 0, mchs })
+            })
+            .catch(err => {
+                cb({ ret: -1, msg: err })
             })
     });
 });

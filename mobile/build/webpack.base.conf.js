@@ -11,6 +11,13 @@ var cssSourceMapProd = (env === 'production' && config.build.productionSourceMap
 var useCssSourceMap = cssSourceMapDev || cssSourceMapProd
 
 module.exports = {
+  //for import lokijs
+  node: {
+    fs: 'empty',
+    net: 'empty',
+    tls: 'empty',
+    'crypto': 'empty'
+  },
   entry: {
     app: './src/main.js'
   },
