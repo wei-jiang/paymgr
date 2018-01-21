@@ -125,6 +125,15 @@ export default {
         });
       } else {
         //ali here
+        let data = {
+          out_trade_no: new Date().getTime().toString(),
+          body: this.product_name,
+          total_fee,
+          token: mch.token
+        };
+        const q_str = $.param(data)
+        const pay_url = `/ali_wap_pay?${q_str}`
+        window.location.href = pay_url
       }
     }
   }

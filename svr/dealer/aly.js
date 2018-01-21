@@ -16,7 +16,7 @@ const AliPay = java.import('freego.AliPay');
 const ali_pay = new AliPay()
 //winston is global
 function deal_aly_pay(app, io) {
-    app.get('/wap_pay', function (req, res) {
+    app.get('/ali_wap_pay', function (req, res) {
         let data = req.query;
         //to finish
         (async () => {
