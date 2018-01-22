@@ -4,6 +4,9 @@ const _ = require('lodash');
 const moment = require('moment');
 const credential = require('../secret')
 
+function is_sock(sock){
+    return !!sock.handshake
+}
 function get_ip_by_sock(sock) {
     let rip = sock.handshake.headers['x-forwarded-for'];
     //console.log(rip);
@@ -136,6 +139,19 @@ function notify_or_save_pay_result(order_id, resp, io, res) {
             .then(r => {
                 // console.log('find_and_update', r)
                 if (r.ok == 1) {
+                    let o = r.value
+                    let order = {
+                        body: o.body,
+                        sub_mch_id: o.sub_mch_id,
+                        out_trade_no: o.out_trade_no,
+                        total_fee: o.total_fee,
+                        state: '已支付',
+                        spbill_create_ip: o.spbill_create_ip,
+                        trade_type: o.trade_type,
+                        time_begin: moment(o.createdAt).format("YYYY-MM-DD HH:mm:ss"),
+                        time_end: moment().format("YYYY-MM-DD HH:mm:ss")
+                    }
+                    m_db.collection('orders').insert(order)
                     res.end('success');
                 } else {
                     setImmediate(_.partial(find_and_delete, data))
@@ -152,6 +168,7 @@ function hash_str(str){
 }
 
 module.exports = {
+    is_sock,
     hash_str,
     get_ip_by_sock,
     get_ip_by_req,

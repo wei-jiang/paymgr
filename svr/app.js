@@ -38,6 +38,7 @@ io.adapter(redis_adapter({ pubClient: redis_adapter_pub, subClient: redis_adapte
 global.io = io;
 const credential = require('./secret')
 const util = require('./common/util')
+const def = require('./common/def')
 let mongo = require('mongodb'),
     MongoClient = mongo.MongoClient,
     ObjectId = mongo.ObjectID,
@@ -130,7 +131,7 @@ app.get('/mobile.html', function (req, res) {
         } else {
             console.log('get openid=%s', openid);
             res.render('mobile.html', {
-                type: 'wx',
+                pay_type: def.PAY_TYPE.WX_GZH,
                 usr_id: openid
             });
         }
@@ -141,7 +142,7 @@ app.get('/mobile.html', function (req, res) {
 
         // }
         res.render('mobile.html', {
-            type: 'ali',
+            pay_type: def.PAY_TYPE.ALI_WAP,
             usr_id: ''
         });
     }
@@ -364,7 +365,11 @@ io.on('connection', socket => {
         m_db.collection('merchant').find({}).toArray()
             .then(mchs => {
                 mchs = _.map(mchs, m => {
+                    let pay_type = 0
+                    if(m.wx_id) pay_type |= def.PAY_TYPE.WX_GZH
+                    if(m.aly_id) pay_type |= def.PAY_TYPE.ALI_WAP
                     return {
+                        pay_type,
                         name: m.name,
                         token: util.sign_token(m)
                     }

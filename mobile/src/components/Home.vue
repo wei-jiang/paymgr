@@ -9,9 +9,13 @@
 
       <ul class="list">
         <li class="divider">已入驻子商户</li>
-        <li  v-for="m in mchs">
-          <span class="padded-list">{{m.name}}</span>
-          <a class="pull-right icon icon-arrow-forward with-circle" :href="`#!pay/${m.name}`"></a>
+        <li class="padded-list" v-for="m in mchs" >
+          <div style="display:flex;">
+            <span>{{m.name}}</span>
+            <button style="margin-left:auto;" class="btn btn-flat" @click="go_to_buy(m)" :disabled="!is_pay_available(m)">
+              {{pay_caption(m)}}<i class="icon icon-arrow-forward with-circle"></i>
+            </button>
+          </div>          
         </li>
       </ul>
 
@@ -23,6 +27,7 @@
 import _ from 'lodash'
 import net from "../net";
 import util from "../common/util";
+import def from "../common/def";
 export default {
   name: "PhononHomePage",
   props: {
@@ -48,6 +53,20 @@ export default {
     // });
   },
   methods: {
+    go_to_buy(m) {
+      // <a class="pull-right" :href="`#!pay/${m.name}`"></a>
+      phonon.navigator().changePage("buy", m.name);
+    },
+    is_pay_available(m){
+      return m.pay_type & parseInt(window.usr_info.pay_type)
+    },
+    pay_caption(m){
+      let pt = this.is_pay_available(m)
+      if(pt){
+        return def.get_pay_caption(pt) + '支付'
+      }
+      return def.get_pay_caption( parseInt(window.usr_info.pay_type) ) + '支付' + '未开通'
+    },
     get_mchs() {
       net.get_mchs(res=>{
         if(res.ret == 0){

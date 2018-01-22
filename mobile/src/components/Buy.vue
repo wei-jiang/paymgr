@@ -1,5 +1,5 @@
 <template>
-  <pay data-page="true">
+  <buy data-page="true">
     <header class="header-bar">
       <div class="left">
         <button class="btn pull-left icon icon-arrow-back" data-navigation="$previous-page"></button>        
@@ -27,7 +27,7 @@
         <button class="btn primary fit-parent"  v-tap="onBuy">购买</button>
       </ul>
     </div>
-  </pay>
+  </buy>
 </template>
 
 <script>
@@ -35,6 +35,7 @@ import Vue from "vue";
 import _ from "lodash";
 import net from "../net";
 import util from "../common/util";
+import def from "../common/def";
 // Directive to use tap events with VueJS
 Vue.directive("tap", {
   isFn: true, // important!
@@ -44,7 +45,7 @@ Vue.directive("tap", {
 });
 
 export default {
-  name: "PhononPay",
+  name: "PhononBuy",
   props: {
     app: {
       type: Object,
@@ -74,7 +75,7 @@ export default {
      * If Phonon finds page events, it will call them
      * here we want to use onClose, onHidden and onHashChanged methods
      */
-    this.app.on({ page: "pay", preventClose: true }, this);
+    this.app.on({ page: "buy", preventClose: true }, this);
   },
 
   methods: {
@@ -93,7 +94,7 @@ export default {
       let mch = _.find(mchs, m => m.name == this.sel_mch);
       let total_fee = parseInt(this.price * this.count);
       total_fee = total_fee > 0 ? total_fee : 0;
-      if (usr_info.type == "wx") {
+      if (usr_info.pay_type & def.PAY_TYPE.WX) {
         let data = {
           out_trade_no: new Date().getTime().toString(),
           body: this.product_name,

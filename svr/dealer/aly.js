@@ -16,20 +16,31 @@ const AliPay = java.import('freego.AliPay');
 const ali_pay = new AliPay()
 //winston is global
 function deal_aly_pay(app, io) {
+    app.get('/ali_result', (req, res)=> {
+        res.writeHead(200, {"Content-Type": "text/html; charset=utf-8"});
+        res.end('支付成功')
+    })
     app.get('/ali_wap_pay', function (req, res) {
         let data = req.query;
         //to finish
         (async () => {
             try{
-                let reqObj = {
-                    out_trade_no: data.out_trade_no,
-                    refund_amount,
-                    refund_reason: data.refund_reason,
-                    store_id: data.store_id
-                }
-                let html = await ali_pay.wap_payPromise( JSON.stringify(reqObj), auth_token )
+                let notify_url = "https://pay.cninone.com/ali_notify"
+                let return_url = "https://pay.cninone.com/ali_result"
+                let decoded = await util.verify_req(data)
+                let reqObj = get_req_obj(req, data, decoded)
+                reqObj.product_code = 'QUICK_WAP_WAY'
+                console.log('in /ali_wap_pay', reqObj)
+                let html = await ali_pay.wap_payPromise( 
+                    JSON.stringify(reqObj), 
+                    decoded.ali.app_auth_token,
+                    return_url,
+                    notify_url
+                )
+                res.writeHead(200, {"Content-Type": "text/html; charset=utf-8"});
+                res.end(html)
             } catch (err) {
-
+                console.log('some thing wrong', err)
             }
             return "done"
         })()  
@@ -190,10 +201,10 @@ function order_query(sock, data, cb) {
     })()    
 }
 //把微信的请求格式转成ali的（客户端请求单位全部用 分）
-function get_req_obj(sock, data, decoded) {
+function get_req_obj(sock_or_req, data, decoded) {
     data.total_fee = parseInt(data.total_fee)
     data.sub_mch_id = decoded.aly_id;
-    data.spbill_create_ip = util.get_ip_by_sock(sock);
+    data.spbill_create_ip = util.is_sock(sock_or_req)? util.get_ip_by_sock(sock_or_req) : util.get_ip_by_req(sock_or_req);
     data.out_trade_no = data.out_trade_no || moment().format("freego_YYYYMMDDHHmmssSSS")
     data.store_id = data.store_id || 'cs001'
     //above as order info to save in db
