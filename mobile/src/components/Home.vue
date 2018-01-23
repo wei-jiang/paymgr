@@ -58,14 +58,14 @@ export default {
       phonon.navigator().changePage("buy", m.name);
     },
     is_pay_available(m){
-      return m.pay_type & parseInt(window.usr_info.pay_type)
+      return m.pay_type & window.usr_info.pay_type
     },
     pay_caption(m){
       let pt = this.is_pay_available(m)
       if(pt){
-        return def.get_pay_caption(pt) + '支付'
+        return ''//def.get_pay_caption(pt) + '支付'
       }
-      return def.get_pay_caption( parseInt(window.usr_info.pay_type) ) + '支付' + '未开通'
+      return def.get_pay_caption( window.usr_info.pay_type ) + '支付' + '未开通'
     },
     get_mchs() {
       net.get_mchs(res=>{

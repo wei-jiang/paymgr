@@ -7,15 +7,31 @@ const mail = require('./mail');
 const tmpl = `
 <h2>{{ day }} 销售数据</h2>
 <ul>
-{% for m in today_income %}
-  <li>
-    <h3>{{ m.name }}</h3>
-    <h4>微信收入：{{m.wx_income}}（元）</h4>
-    <h4>支付宝收入：{{m.ali_income}}（元）</h4>
-  --------------------------------------------
-  </li>
-{% endfor %}
+{% for it0 in today_income %}
+    {% for k0,v0 in it0 %}
+    <li>
+        <h3>{{ k0 }}</h3>
+        {% for it1 in v0 %}
+            {% for k1,v1 in it1 %}
+                <h4>{{ k1 }}</h4>
+                {% for it2 in v1 %}
+                    {% for k2,v2 in it2 %}
+                        <h5>{{ k2 }}:{{v2}}(元)</h5>
+                    {% endfor %}
+                {% endfor %} 
+            {% endfor %}  
+        {% endfor %}    
+    </li>
+    --------------------------------------------
+    {% endfor %}
+{% endfor %}    
 </ul>
+<h3>总计：</h3>
+{% for t0 in total %}
+    {% for k0,v0 in t0 %}
+        <h4>{{ k0 }}:{{v0}}(元)</h4>
+    {% endfor %}
+{% endfor %} 
 `
 function do_job() {
     let mchs = m_db.collection('merchant').find({}).toArray()
@@ -28,31 +44,49 @@ function do_job() {
 
     Promise.all([mchs, today_orders])
         .then(_.spread((mch, order) => {
-            // console.log(mch, order)
-            let today_income = _.map(mch, m => {
-                let wx_income = _.chain(order)
-                    .filter(o => o.sub_mch_id == m.wx_id)
-                    .reduce((sum, o) => sum + o.total_fee, 0)
-                    .value();
-                let ali_income = _.chain(order)
-                    .filter(o => o.sub_mch_id == m.aly_id)
-                    .reduce((sum, o) => sum + o.total_fee, 0)
-                    .value();
-                return {
-                    name: m.name,
-                    wx_income: parseFloat(wx_income / 100).toFixed(2),
-                    ali_income: parseFloat(ali_income / 100).toFixed(2)
-                }
-            })
-            // console.log(today_income)
-            let day = moment().format("YYYY-MM-DD");
-            today_income = nunjucks.renderString(tmpl, {
-                day,
-                today_income
-            });
-            // console.log(today_income)
-            mail.send(`智慧旅游支付平台(${day})销售通知`, null, today_income)
+            let today_income = _.chain(mch)
+                    .map(m => {
+                        return {
+                            [m.name]:_.chain(order)
+                            .filter(o => o.sub_mch_id == m.wx_id || o.sub_mch_id == m.aly_id)
+                            .groupBy("sub_mch_id")
+                            .map((v0, k0) => {
+                                return {
+                                        [
+                                            k0 == m.wx_id ? '微信':'支付宝'
+                                        ] 
+                                        : _.chain(v0)
+                                        .groupBy("state")
+                                        .map( (v1, k1) => 
+                                            ({
+                                                [k1]: parseFloat(_.reduce(v1, (sum, o) => sum + o.total_fee, 0)/100).toFixed(2)
+                                            })
+                                        )
+                                        .value()
+                                }
+                            })
+                            .value()
+                        } 
+                    })
+                    .filter(it=>_.size( _.flattenDeep(_.values(it) ) ) > 0)
+                    .value()
+                const total = _.chain(order)  
+                .groupBy("state")
+                .map( (v1, k1) => 
+                    ({
+                        [k1]: parseFloat(_.reduce(v1, (sum, o) => sum + o.total_fee, 0)/100).toFixed(2)
+                    })
+                )
+                .value()
 
+                let day = moment().format("YYYY-MM-DD");
+                today_income = nunjucks.renderString(tmpl, { 
+                    day,
+                    today_income,
+                    total
+                });
+
+                mail.send(`智慧旅游支付平台(${day})销售通知`, null, today_income)
         }))
 }
 
