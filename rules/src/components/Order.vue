@@ -21,13 +21,16 @@
         <div style="width:300px;">名称</div>
         <div style="width:100px;">价格</div>
         <div style="width:200px;">支付类型</div>
+        <div style="width:200px;">日期</div>
         <div style="width:100px;">状态</div>
       </v-layout>
+      
       <v-layout row v-for="o in orders" style="border:1px dashed purple">
         <div style="width:200px;">{{o.out_trade_no}}</div>
         <div style="width:300px;">{{o.body}}</div>
         <div style="width:100px;">{{parseFloat(o.total_fee/100).toFixed(2)+'(元)'}}</div>
         <div style="width:200px;">{{o.trade_type}}</div>
+        <div style="width:200px;">{{o.time_end}}</div>
         <div style="width:100px;">{{o.state}}</div>
         <v-btn color="info" @click="query_order(o)">查询</v-btn>
         <v-btn v-if="o.state==='已支付'" color="warning" @click="reverse_order(o)">撤销</v-btn>

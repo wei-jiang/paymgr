@@ -98,11 +98,19 @@ var webpackConfig = merge(baseWebpackConfig, {
     ]),
     // service worker caching
     new SWPrecacheWebpackPlugin({
-      cacheId: 'my-vue-app',
+      cacheId: 'paymgr-vuetify',
       filename: 'service-worker.js',
-      staticFileGlobs: ['dist/**/*.{js,html,css}'],
+      staticFileGlobs: [
+        '../svr/public/rules/**/*.{js,html,css}',
+        '../svr/public/rules.html'
+      ],
       minify: true,
-      stripPrefix: 'dist/'
+      // stripPrefix: '../svr/public/rules/',
+      stripPrefixMulti:{
+        '../svr/public/rules.html':'/rules.html',
+        '../svr/public/rules/':''        
+      },
+      staticFileGlobsIgnorePatterns: [/\.map$/]
     })
   ]
 })

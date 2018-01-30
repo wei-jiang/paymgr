@@ -331,7 +331,7 @@ function dl_wx_bill(sock, data, cb) {
 }
 
 //mdb && winston is global
-function deal_wx_pay(app, io) {
+function handle_pay_event(app, io) {
     app.get('/wx_bill', (req, res) => {
         const csv_id = req.query.csv_id
         // console.log('in /wx_bill', req.query)
@@ -381,4 +381,6 @@ function deal_wx_pay(app, io) {
         socket.on('wx_js_prepay_id', (data, cb) => js_prepay(socket, data, cb));        
     });
 }
-module.exports = deal_wx_pay;
+module.exports = {
+    handle_pay_event
+}

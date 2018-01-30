@@ -148,6 +148,9 @@ app.get('/mobile.html', function (req, res) {
     }
 
 });
+app.post('/api/qr_pay', (req, res) => {
+
+})
 // app.post('/test_notify', (req, res) => {
 //     let resp = req.body;
 //     console.log('test_notify=' + JSON.stringify(resp));
@@ -384,10 +387,10 @@ io.on('connection', socket => {
 });
 const cron = require('./dealer/cron')
 cron.start()
-const deal_aly_pay = require('./dealer/aly')
-const deal_wx_pay = require('./dealer/wx')
-deal_aly_pay(app, io)
-deal_wx_pay(app, io)
+const Ali = require('./dealer/aly')
+const Wx = require('./dealer/wx')
+Ali.handle_pay_event(app, io)
+Wx.handle_pay_event(app, io)
 function shutdown_svr() {
     // console.log('in shutdown_svr()');
     io.clients((error, clients) => {

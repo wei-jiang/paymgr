@@ -15,7 +15,7 @@ java.asyncOptions = {
 const AliPay = java.import('freego.AliPay');
 const ali_pay = new AliPay()
 //winston is global
-function deal_aly_pay(app, io) {
+function handle_pay_event(app, io) {
     app.get('/ali_result', (req, res)=> {
         res.writeHead(200, {"Content-Type": "text/html; charset=utf-8"});
         res.end('支付成功')
@@ -309,4 +309,6 @@ function req_auth_pay(sock, data, cb) {
             })
         });
 }
-module.exports = deal_aly_pay;
+module.exports = {
+    handle_pay_event
+}
