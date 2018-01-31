@@ -32,11 +32,11 @@ const wxpay = new WXPay({
 });
 
 function get_req_obj(sock_or_req, data, decoded) {
-    const my_url = util.is_sock(sock_or_req)? util.get_myurl_by_sock(sock_or_req) : util.get_myurl_by_req(sock_or_req)
+    const my_url = util.is_sock(sock_or_req) ? util.get_myurl_by_sock(sock_or_req) : util.get_myurl_by_req(sock_or_req)
     let notify_url = `${my_url}/wx_notify`
     // console.log(`notify_url=${notify_url}`)
     data.sub_mch_id = decoded.wx_id;
-    data.spbill_create_ip = util.is_sock(sock_or_req)? util.get_ip_by_sock(sock_or_req) : util.get_ip_by_req(sock_or_req);
+    data.spbill_create_ip = util.is_sock(sock_or_req) ? util.get_ip_by_sock(sock_or_req) : util.get_ip_by_req(sock_or_req);
     data.total_fee = parseInt(data.total_fee)
     data.out_trade_no = data.out_trade_no || moment().format("freego_YYYYMMDDHHmmssSSS")
     delete data.token;
@@ -73,49 +73,49 @@ function req_micropay(sock, data, cb) {
                         ret: -1,
                         msg: `${res.err_code_des}（请稍候）`
                     });
-                    (function q_order_state(count){
-                        setTimeout( _.partial(order_query, sock, data, r=>{
-                            if(r.ret == 0){
+                    (function q_order_state(count) {
+                        setTimeout(_.partial(order_query, sock, data, r => {
+                            if (r.ret == 0) {
                                 data.trade_type = '微信反扫';
                                 m_db.collection('orders').insert(data)
                             } else {
-                                if(count > 0){
+                                if (count > 0) {
                                     q_order_state(--count)
-                                } else{
-                                    reverse(sock, data, r=>{
+                                } else {
+                                    reverse(sock, data, r => {
 
                                     })
-                                }                                
+                                }
                             }
                             sock.emit('update_order_state', {
                                 ret: r.ret,
-                                out_trade_no:data.out_trade_no, 
+                                out_trade_no: data.out_trade_no,
                                 state: r.msg
                             })
-                        }), 3*1000)
+                        }), 3 * 1000)
                     })(10)
                 } else if (res.result_code == 'SYSTEMERROR') {
                     cb({
                         ret: -1,
                         msg: `${res.err_code_des}（请稍候）`
                     });
-                    (function q_order_state(count){
-                        setTimeout( _.partial(order_query, sock, data, r=>{
-                            if(r.ret == 0){
+                    (function q_order_state(count) {
+                        setTimeout(_.partial(order_query, sock, data, r => {
+                            if (r.ret == 0) {
                                 data.trade_type = '微信反扫';
                                 m_db.collection('orders').insert(data)
                             } else {
-                                if(count > 0){
+                                if (count > 0) {
                                     q_order_state(--count)
-                                } else{
-                                    reverse(sock, data, r=>{
+                                } else {
+                                    reverse(sock, data, r => {
 
                                     })
-                                }                                
+                                }
                             }
                             sock.emit('update_order_state', {
                                 ret: r.ret,
-                                out_trade_no:data.out_trade_no, 
+                                out_trade_no: data.out_trade_no,
                                 state: r.msg
                             })
                         }), 3000)
@@ -145,20 +145,20 @@ function req_micropay(sock, data, cb) {
 function js_prepay(sock, data, cb) {
     // const to_url = `https://wx.ily365.cn/oid?rurl=${get_myurl_by_sock(sock)}/mobile`
     (async () => {
-        try{
+        try {
             let decoded = await util.verify_req(data)
             let reqObj = get_req_obj(sock, data, decoded)
-            reqObj.trade_type = 'JSAPI';            
+            reqObj.trade_type = 'JSAPI';
             reqObj.openid = data.openid;
             let res = await wxpay.unifiedOrder(reqObj)
-            if(res.return_code === 'SUCCESS'){
-                if(res.result_code === 'SUCCESS'){
+            if (res.return_code === 'SUCCESS') {
+                if (res.result_code === 'SUCCESS') {
                     let prepay = {
-                        appId:res.appid,
+                        appId: res.appid,
                         timeStamp: (new Date).getTime().toString(),
-                        nonceStr:res.nonce_str,
+                        nonceStr: res.nonce_str,
                         signType: WXPayConstants.SIGN_TYPE_HMACSHA256,
-                        package:`prepay_id=${res.prepay_id}`
+                        package: `prepay_id=${res.prepay_id}`
                     }
                     prepay.paySign = WXPayUtil.generateSignature(prepay, credential.wx_KEY, WXPayConstants.SIGN_TYPE_HMACSHA256)
                     data.cli_id = data.openid
@@ -166,14 +166,14 @@ function js_prepay(sock, data, cb) {
                     data.sock_status = 'valid'
                     data.sock_id = sock.id;
                     data.createdAt = new Date();
-                    data.trade_type = '微信公众号';           
+                    data.trade_type = '微信公众号';
                     // console.log(data);
                     m_db.collection('pending_order').insert(data)
-                    cb({ ret: 0, prepay });          
-                } else{
+                    cb({ ret: 0, prepay });
+                } else {
                     throw res.err_code_des
                 }
-            } else{
+            } else {
                 throw res.return_msg
             }
         } catch (err) {
@@ -181,7 +181,7 @@ function js_prepay(sock, data, cb) {
             cb({ ret: -1, msg: err });
         }
         return "done"
-    })()    
+    })()
 }
 function req_wxpay_qr(sock, data, cb) {
     util.verify_req(data, () => data.cli_id)
@@ -197,7 +197,7 @@ function req_wxpay_qr(sock, data, cb) {
             data.sock_status = 'valid'
             data.sock_id = sock.id;
             data.createdAt = new Date();
-            data.trade_type = '微信正扫';           
+            data.trade_type = '微信正扫';
             // console.log(data);
             m_db.collection('pending_order').insert(data)
             cb(res);
@@ -214,7 +214,7 @@ function req_wxpay_qr(sock, data, cb) {
 //here
 function refund(sock, data, cb) {
     (async () => {
-        try{
+        try {
             let usr = await util.verify_usr(data)
             let reqObj = {
                 sub_mch_id: data.sub_mch_id,
@@ -224,75 +224,75 @@ function refund(sock, data, cb) {
                 refund_fee: data.total_fee
             }
             let res = await wxpay.refund(reqObj)
-            if(res.return_code === 'SUCCESS'){
-                if(res.result_code === 'SUCCESS'){
-                    cb({ ret: 0, msg: '退款申请成功' });                
-                } else{
+            if (res.return_code === 'SUCCESS') {
+                if (res.result_code === 'SUCCESS') {
+                    cb({ ret: 0, msg: '退款申请成功' });
+                } else {
                     throw res.err_code_des
                 }
-            } else{
+            } else {
                 throw res.return_msg
             }
         } catch (err) {
-            console.log( err )
+            console.log(err)
             cb({ ret: -1, msg: err });
         }
         return "done"
-    })()    
-} 
+    })()
+}
 function reverse(sock, data, cb) {
     (async () => {
-        try{
+        try {
             let usr = await util.verify_usr(data)
             let reqObj = {
                 sub_mch_id: data.sub_mch_id,
                 out_trade_no: data.out_trade_no
             }
             let res = await wxpay.reverse(reqObj)
-            if(res.return_code === 'SUCCESS'){
-                if(res.result_code === 'SUCCESS'){
-                    cb({ ret: 0, msg: '撤销成功' });                
-                } else{
+            if (res.return_code === 'SUCCESS') {
+                if (res.result_code === 'SUCCESS') {
+                    cb({ ret: 0, msg: '撤销成功' });
+                } else {
                     throw res.err_code_des
                 }
-            } else{
+            } else {
                 throw res.return_msg
             }
         } catch (err) {
-            console.log( err )
+            console.log(err)
             cb({ ret: -1, msg: err });
         }
         return "done"
-    })()    
-} 
+    })()
+}
 function order_query(sock, data, cb) {
     (async () => {
-        try{
+        try {
             let usr = await util.verify_usr(data)
             let reqObj = {
                 sub_mch_id: data.sub_mch_id,
                 out_trade_no: data.out_trade_no
             }
             let res = await wxpay.orderQuery(reqObj)
-            if(res.return_code === 'SUCCESS'){
-                if(res.result_code === 'SUCCESS'){
-                    if(res.trade_state === 'SUCCESS'){
+            if (res.return_code === 'SUCCESS') {
+                if (res.result_code === 'SUCCESS') {
+                    if (res.trade_state === 'SUCCESS') {
                         cb({ ret: 0, msg: '支付成功' });
                     } else {
                         throw res.err_code_des
-                    }                    
-                } else{
+                    }
+                } else {
                     throw res.trade_state_desc
                 }
-            } else{
+            } else {
                 throw res.return_msg
             }
         } catch (err) {
-            console.log( err )
+            console.log(err)
             cb({ ret: -1, msg: err });
         }
         return "done"
-    })()    
+    })()
 }
 function dl_wx_bill(sock, data, cb) {
     let reqObj = {
@@ -313,9 +313,9 @@ function dl_wx_bill(sock, data, cb) {
                 let res = await wxpay.downloadBill(reqObj)
                 if (res.return_code == 'SUCCESS') {
                     const csv_str = res.data
-                    const csv_buff = Binary( Buffer.from(csv_str) )
+                    const csv_buff = Binary(Buffer.from(csv_str))
                     //sava to temp collection waiting for fetched by client
-                    const new_csv = await m_db.collection('temp').insertOne({ csv_id, csv_str, csv_buff, name:`wxpay_${data.bill_date}` })
+                    const new_csv = await m_db.collection('temp').insertOne({ csv_id, csv_str, csv_buff, name: `wxpay_${data.bill_date}` })
                     const to_url = `/wx_bill?csv_id=${new_csv.insertedId}`
                     cb({ ret: 0, to_url, data: res.data });
                 } else {
@@ -336,37 +336,49 @@ function handle_pay_event(app, io) {
     app.get('/wx_gzh_pay', (req, res) => {
         const sess = req.session;
         const openid = req.query.oid;
-        if (!sess.order_info || !openid) {
+        if (!sess.order_data || !openid) {
             console.log('/wx_gzh_pay invalid entrance')
             return res.end('invalid entrance');
         }
-        let order_info = sess.order_info;
-        order_info.sub_openid = openid;
-        let inter_noty_url = order_info.notify_url;
-        order_info.notify_url = get_myurl_by_req(req) + '/notify';
-        var m_info = Merchants.findOne({
-            merch_id: sess.mch_id
-        });
-        if (!m_info || _.isEmpty(m_info)) {
-            return res.end(JSON.stringify({ ret: -1 }));
-        }
-        var sp_pay = new SPPay({
-            mch_id: sess.mch_id,
-            partner_key: m_info.key
-        });
-        
-        sp_pay.get_wx_jspay_para(order_info, Meteor.bindEnvironment(function (err, result) {
-            console.log(err, result);
-            if (result && result.result_code == '0') {
-                let url = `https://pay.swiftpass.cn/pay/jspay?token_id=${result.token_id}&showwxtitle=1`;
-                // console.log('url=' + url);
-                sd.save_wxmp_order(order_info, inter_noty_url)
-                res.redirect(url);
-
+        (async () => {
+            try {
+                let data = sess.order_data
+                let reqObj = get_req_obj(req, data, sess.mch_decoded)
+                reqObj.trade_type = 'JSAPI';
+                reqObj.openid = openid;
+                let wx_res = await wxpay.unifiedOrder(reqObj)
+                if (wx_res.return_code === 'SUCCESS') {
+                    if (wx_res.result_code === 'SUCCESS') {
+                        let prepay = {
+                            appId: wx_res.appid,
+                            timeStamp: (new Date).getTime().toString(),
+                            nonceStr: wx_res.nonce_str,
+                            signType: WXPayConstants.SIGN_TYPE_HMACSHA256,
+                            package: `prepay_id=${wx_res.prepay_id}`
+                        }
+                        prepay.paySign = WXPayUtil.generateSignature(prepay, credential.wx_KEY, WXPayConstants.SIGN_TYPE_HMACSHA256)
+                        data.cli_id = openid
+                        data["pay_status"] = "invalid"
+                        data.sock_status = 'valid'
+                        data.createdAt = new Date();
+                        data.trade_type = '微信公众号';
+                        // console.log(data);
+                        m_db.collection('pending_order').insert(data)
+                        prepay.rurl = sess.rurl
+                        res.render('gzh_relay.html', prepay);
+                    } else {
+                        throw wx_res.err_code_des
+                    }
+                } else {
+                    throw wx_res.return_msg
+                }
+            } catch (err) {
+                // console.log( err )
+                const qs = querystring.stringify({ ret: -1, msg: err })
+                res.redirect(`${sess.rurl}?${qs}`);
             }
-
-        }));
-
+            return "done"
+        })()
     });
     app.get('/wx_bill', (req, res) => {
         const csv_id = req.query.csv_id
@@ -392,7 +404,7 @@ function handle_pay_event(app, io) {
             }
             return "done"
         }
-        download_csv()        
+        download_csv()
     })
     app.post('/wx_notify', (req, res) => {
         let resp = req.body.xml;
@@ -415,7 +427,7 @@ function handle_pay_event(app, io) {
         socket.on('dl_wx_bill', (data, cb) => dl_wx_bill(socket, data, cb));
         socket.on('wx_reverse', (data, cb) => reverse(socket, data, cb));
         socket.on('wx_refund', (data, cb) => refund(socket, data, cb));
-        socket.on('wx_js_prepay_id', (data, cb) => js_prepay(socket, data, cb));        
+        socket.on('wx_js_prepay_id', (data, cb) => js_prepay(socket, data, cb));
     });
 }
 module.exports = {
@@ -435,7 +447,7 @@ function req_pay_qr(req, data, cb) {
             data.createdAt = new Date();
             data["pay_status"] = "invalid"
             data.sock_status = 'valid'
-            data.trade_type = '微信正扫';           
+            data.trade_type = '微信正扫';
             // console.log(data);
             m_db.collection('pending_order').insert(data)
             cb({

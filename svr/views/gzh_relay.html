@@ -1,0 +1,54 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+  <meta charset="utf-8">
+  <meta name="format-detection" content="telephone=no" />
+  <meta name="viewport" content="user-scalable=no, initial-scale=1, maximum-scale=1, minimum-scale=1, width=device-width, height=device-height"
+  />
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="mobile-web-app-capable" content="yes">
+  <title>智慧旅游公众号中转支付</title>
+</head>
+
+<body>
+  <script src="/libs/jquery-3.3.1.min.js"></script>
+  <script type="text/javascript">
+    function onBridgeReady() {
+      var data = {
+        appId: "{{appId}}",
+        timeStamp: "{{timeStamp}}",
+        nonceStr: "{{nonceStr}}",
+        signType: "{{signType}}",
+        package: "{{package}}",
+        paySign: "{{paySign}}"
+      };
+      // alert(JSON.stringify(data))
+      WeixinJSBridge.invoke("getBrandWCPayRequest",
+        data,
+        function (resp) {
+          if (resp.err_msg == "get_brand_wcpay_request:ok") {
+            // 此处可以使用此方式判断前端返回,微信团队郑重提示：res.err_msg 将在用户支付成功后返回ok，但并不保证它绝对可靠，。
+            window.location.href = "{{rurl}}" + '?' + $.param({ ret: 0 });
+          } else {
+            window.location.href = "{{rurl}}" + '?' + $.param({ ret: -1, msg: resp.err_msg });
+          }
+        });
+    }
+    if (typeof WeixinJSBridge == "undefined") {
+      if (document.addEventListener) {
+        document.addEventListener('WeixinJSBridgeReady', onBridgeReady, false);
+      } else if (document.attachEvent) {
+        document.attachEvent('WeixinJSBridgeReady', onBridgeReady);
+        document.attachEvent('onWeixinJSBridgeReady', onBridgeReady);
+      }
+    } else {
+      onBridgeReady();
+    }
+    
+
+  </script>
+
+</body>
+
+</html>

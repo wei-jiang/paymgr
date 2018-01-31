@@ -48,6 +48,17 @@ let mongo = require('mongodb'),
     http_svr;
 global.m_db = null;
 app.set('port', process.env.PORT || 8200);
+app.use(session({
+    secret: credential.session_key,
+    store: new MongoStore({
+        url: credential.db_url,
+        // ttl: 14 * 24 * 60 * 60 // = 14 days. Default
+        ttl: 1 * 60 * 60,
+        touchAfter: 24 * 3600 // time period in seconds
+    }),
+    resave: false,
+    saveUninitialized: false
+}));
 MongoClient.connect(credential.db_url)
     .then(client => {
         m_db = client.db(credential.db_name);
@@ -56,17 +67,7 @@ MongoClient.connect(credential.db_url)
         console.log('connect to mongodb(paymgr) success')
         const listen_port = app.get('port') + (parseInt(process.env.NODE_APP_INSTANCE) || 0);
         // console.log('listen_port='+ listen_port)
-        app.use(session({
-            secret: credential.session_key,
-            store: new MongoStore({
-                db: m_db,
-                // ttl: 14 * 24 * 60 * 60 // = 14 days. Default
-                ttl: 1 * 60 * 60,
-                touchAfter: 24 * 3600 // time period in seconds
-            }),
-            resave: false,
-            saveUninitialized: false
-        }));
+        
         http_svr = server.listen(listen_port
             , 'localhost'
             , () => {
@@ -150,9 +151,14 @@ app.get('/mobile.html', function (req, res) {
     }
 
 });
+app.get('/test', (req, res) => {
+    const data = req.query;
+    console.log('on get /test, data=' + JSON.stringify(data));
+    res.end( JSON.stringify(data) )
+})
 app.post('/test', (req, res) => {
     const data = req.body;
-    console.log('/test, data=' + JSON.stringify(data));
+    console.log('on post /test, data=' + JSON.stringify(data));
     res.end('success')
 })
 app.get('/api/wx_gzh_relay.html', (req, res) => {
@@ -160,25 +166,32 @@ app.get('/api/wx_gzh_relay.html', (req, res) => {
     const nurl = req.query['nurl'];
     const price = req.query['price'];
     const token = req.query['token'];
-    const oid = req.query['oid'];
+    const order_id = req.query['oid'];
     const desc = req.query['desc'];
     const sess = req.session;
-    console.log('/api/wx_gzh_relay.html, qdata=' + JSON.stringify(req.query));
-    res.writeHead(200, {"Content-Type": "text/html; charset=utf-8"});
-    if (!rurl || !desc || !nurl || !price || !token || !oid) {
+    // console.log('/api/wx_gzh_relay.html, qdata=' + JSON.stringify(req.query));
+    if (!rurl || !desc || !nurl || !price || !token || !order_id) {
+        // res.writeHead(200, {"Content-Type": "text/html; charset=utf-8"});
         return res.end('wrong parameters');
     }
     (async () => {
         try{
             let decoded = await util.verify_mch_token(token)
-            sess.order_info = {
-                rurl, nurl, price, token, oid, desc
+            // console.log(decoded)
+            sess.rurl = rurl;
+            sess.mch_decoded = decoded;
+            sess.order_data = {
+                out_trade_no: order_id,
+                body: desc,
+                total_fee: price,
+                notify_url: nurl
             };
             const qs = querystring.stringify({rurl: `${util.get_myurl_by_req(req)}/wx_gzh_pay`})
+            // console.log(qs)
             res.redirect(`https://wx.ily365.cn/oid?${qs}`);
         } catch (err) {
             // console.log( err )
-            res.end(err);
+            res.end( JSON.stringify(err) );
         }
         return "done"
     })()    
