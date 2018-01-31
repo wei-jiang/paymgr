@@ -15,7 +15,9 @@ const querystring = require('querystring');
 const request = require('request');
 const _ = require('lodash');
 const moment = require('moment');
-
+const cron = require('./dealer/cron')
+const Ali = require('./dealer/aly')
+const Wx = require('./dealer/wx')
 const Redis = require('ioredis');
 const redis_adapter = require('socket.io-redis');
 const redis_adapter_pub = new Redis({
@@ -148,8 +150,73 @@ app.get('/mobile.html', function (req, res) {
     }
 
 });
+app.post('/test', (req, res) => {
+    const data = req.body;
+    console.log('/test, data=' + JSON.stringify(data));
+    res.end('success')
+})
+app.get('/api/wx_gzh_relay.html', (req, res) => {
+    const rurl = req.query['rurl'];
+    const nurl = req.query['nurl'];
+    const price = req.query['price'];
+    const token = req.query['token'];
+    const oid = req.query['oid'];
+    const desc = req.query['desc'];
+    const sess = req.session;
+    console.log('/api/wx_gzh_relay.html, qdata=' + JSON.stringify(req.query));
+    res.writeHead(200, {"Content-Type": "text/html; charset=utf-8"});
+    if (!rurl || !desc || !nurl || !price || !token || !oid) {
+        return res.end('wrong parameters');
+    }
+    (async () => {
+        try{
+            let decoded = await util.verify_mch_token(token)
+            sess.order_info = {
+                rurl, nurl, price, token, oid, desc
+            };
+            const qs = querystring.stringify({rurl: `${util.get_myurl_by_req(req)}/wx_gzh_pay`})
+            res.redirect(`https://wx.ily365.cn/oid?${qs}`);
+        } catch (err) {
+            // console.log( err )
+            res.end(err);
+        }
+        return "done"
+    })()    
+})
+app.post('/api/qr_pay/result', (req, res) => {
+    const data = req.body;
+    // console.log('/api/qr_pay/result, data=' + JSON.stringify(data));
+    (async () => {
+        try{
+            let decoded = await util.verify_usr(data)
+            if (decoded.ali && decoded.ali.app_auth_token) {
+                let order = await m_db.collection('orders').findOne({out_trade_no: data.order_id}, {projection:{_id: 0}})
+                res.json({ ret: 0, order });
+            } else {
+                throw '无商户授权码'
+            }
+        } catch (err) {
+            // console.log( err )
+            res.json({ ret: -1, msg: err });
+        }
+        return "done"
+    })()    
+})
 app.post('/api/qr_pay', (req, res) => {
-
+    const data = req.body;
+    // console.log('/api/qr_pay, data=' + JSON.stringify(data));
+    let req_data = {
+        token:data.token,
+        out_trade_no: data.order_id,
+        body: data.product_desc,
+        total_fee: data.amount,
+        notify_url: data.notify_url
+    }
+    if(data.qr_type == 0 ){
+        Wx.req_pay_qr( req, req_data, ret=>res.json(ret) )
+    } else{
+        Ali.req_pay_qr( req, req_data, ret=>res.json(ret) )
+    }
 })
 // app.post('/test_notify', (req, res) => {
 //     let resp = req.body;
@@ -385,10 +452,8 @@ io.on('connection', socket => {
             })
     });
 });
-const cron = require('./dealer/cron')
+
 cron.start()
-const Ali = require('./dealer/aly')
-const Wx = require('./dealer/wx')
 Ali.handle_pay_event(app, io)
 Wx.handle_pay_event(app, io)
 function shutdown_svr() {

@@ -35,13 +35,16 @@ class A() : MyClass(){
 class AliPay {
     //获得初始化的AlipayClient
     val alipayClient = DefaultAlipayClient( URL, APP_ID, APP_PRIVATE_KEY, FORMAT, CHARSET, ALIPAY_PUBLIC_KEY, SIGNTYPE); 
-    fun precreate(json: String, auth_token: String):String {
+    fun precreate_url(json: String, auth_token: String, url: String):String {
         val request = AlipayTradePrecreateRequest();//创建API对应的request类
         request.putOtherTextParam("app_auth_token", auth_token);
-        request.putOtherTextParam("notify_url", notify_url);
+        request.putOtherTextParam("notify_url", url);
         request.setBizContent( json );//设置业务参数
         val response = alipayClient.execute(request);
         return response.getBody()
+    }
+    fun precreate(json: String, auth_token: String):String {
+        return precreate_url(json, auth_token, notify_url)
     }
     fun trade_pay(json: String, auth_token: String):String {
         val request = AlipayTradePayRequest();

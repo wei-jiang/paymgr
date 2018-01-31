@@ -31,11 +31,12 @@ const wxpay = new WXPay({
     useSandbox: false   // 不使用沙箱环境
 });
 
-function get_req_obj(sock, data, decoded) {
-    let notify_url = `${util.get_myurl_by_sock(sock)}/wx_notify`
+function get_req_obj(sock_or_req, data, decoded) {
+    const my_url = util.is_sock(sock_or_req)? util.get_myurl_by_sock(sock_or_req) : util.get_myurl_by_req(sock_or_req)
+    let notify_url = `${my_url}/wx_notify`
     // console.log(`notify_url=${notify_url}`)
     data.sub_mch_id = decoded.wx_id;
-    data.spbill_create_ip = util.get_ip_by_sock(sock);
+    data.spbill_create_ip = util.is_sock(sock_or_req)? util.get_ip_by_sock(sock_or_req) : util.get_ip_by_req(sock_or_req);
     data.total_fee = parseInt(data.total_fee)
     data.out_trade_no = data.out_trade_no || moment().format("freego_YYYYMMDDHHmmssSSS")
     delete data.token;
@@ -332,6 +333,41 @@ function dl_wx_bill(sock, data, cb) {
 
 //mdb && winston is global
 function handle_pay_event(app, io) {
+    app.get('/wx_gzh_pay', (req, res) => {
+        const sess = req.session;
+        const openid = req.query.oid;
+        if (!sess.order_info || !openid) {
+            console.log('/wx_gzh_pay invalid entrance')
+            return res.end('invalid entrance');
+        }
+        let order_info = sess.order_info;
+        order_info.sub_openid = openid;
+        let inter_noty_url = order_info.notify_url;
+        order_info.notify_url = get_myurl_by_req(req) + '/notify';
+        var m_info = Merchants.findOne({
+            merch_id: sess.mch_id
+        });
+        if (!m_info || _.isEmpty(m_info)) {
+            return res.end(JSON.stringify({ ret: -1 }));
+        }
+        var sp_pay = new SPPay({
+            mch_id: sess.mch_id,
+            partner_key: m_info.key
+        });
+        
+        sp_pay.get_wx_jspay_para(order_info, Meteor.bindEnvironment(function (err, result) {
+            console.log(err, result);
+            if (result && result.result_code == '0') {
+                let url = `https://pay.swiftpass.cn/pay/jspay?token_id=${result.token_id}&showwxtitle=1`;
+                // console.log('url=' + url);
+                sd.save_wxmp_order(order_info, inter_noty_url)
+                res.redirect(url);
+
+            }
+
+        }));
+
+    });
     app.get('/wx_bill', (req, res) => {
         const csv_id = req.query.csv_id
         // console.log('in /wx_bill', req.query)
@@ -371,6 +407,7 @@ function handle_pay_event(app, io) {
             res.end('success');
         }
     });
+
     io.on('connection', socket => {
         socket.on('req_wxpay_qr', (data, cb) => req_wxpay_qr(socket, data, cb));
         socket.on('wx_auth_pay', (data, cb) => req_micropay(socket, data, cb));
@@ -382,5 +419,35 @@ function handle_pay_event(app, io) {
     });
 }
 module.exports = {
-    handle_pay_event
+    handle_pay_event,
+    req_pay_qr
+}
+//post api below
+function req_pay_qr(req, data, cb) {
+    util.verify_req(data)
+        .then(decoded => {
+            let reqObj = get_req_obj(req, data, decoded)
+            reqObj.trade_type = 'NATIVE';
+            return wxpay.unifiedOrder(reqObj)
+        })
+        .then(res => {
+            console.log(res);
+            data.createdAt = new Date();
+            data["pay_status"] = "invalid"
+            data.sock_status = 'valid'
+            data.trade_type = '微信正扫';           
+            // console.log(data);
+            m_db.collection('pending_order').insert(data)
+            cb({
+                ret: 0,
+                code_url: res.code_url
+            });
+        })
+        .catch(err => {
+            console.log(err);
+            cb({
+                ret: -1,
+                msg: err
+            })
+        });
 }

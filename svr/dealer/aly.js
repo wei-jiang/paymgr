@@ -310,5 +310,34 @@ function req_auth_pay(sock, data, cb) {
         });
 }
 module.exports = {
-    handle_pay_event
+    handle_pay_event,
+    req_pay_qr
+}
+//post api below
+function req_pay_qr(req, data, cb) {
+    (async () => {
+        try{
+            let decoded = await util.verify_req(data)
+            if (decoded.ali && decoded.ali.app_auth_token) {
+                let reqObj = get_req_obj(req, data, decoded)
+                let res = await ali_pay.precreatePromise( JSON.stringify(reqObj), decoded.ali.app_auth_token)
+                res = JSON.parse(res).alipay_trade_precreate_response;
+                data["pay_status"] = "invalid"
+                data.sock_status = 'valid'
+                data.createdAt = new Date();
+                data.out_trade_no = reqObj.out_trade_no;                        
+                data.trade_type = '支付宝正扫';
+                delete data.token;
+                m_db.collection('pending_order').insert(data)
+                // console.log(res.qr_code)
+                cb({ret:0, code_url:res.qr_code})
+            } else {
+                throw '无商户授权码'
+            }
+        } catch (err) {
+            // console.log( err )
+            cb({ ret: -1, msg: err });
+        }
+        return "done"
+    })()    
 }

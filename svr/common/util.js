@@ -2,9 +2,10 @@ const jwt = require('jsonwebtoken');
 const crypto = require('crypto');
 const _ = require('lodash');
 const moment = require('moment');
+const request = require('request');
 const credential = require('../secret')
 
-function is_sock(sock){
+function is_sock(sock) {
     return !!sock.handshake
 }
 function get_ip_by_sock(sock) {
@@ -26,7 +27,7 @@ let get_myurl_by_req = (req) => {
     let proto = req.headers['x-forwarded-proto'] || 'http';
     let port = req.headers['x-forwarded-port'];
     let url = `${proto}://${host}`
-    if(port) url = url + `:${port}`
+    if (port) url = url + `:${port}`
     // console.log(req.headers);
     // console.log(url);
     return url;
@@ -37,7 +38,7 @@ let get_myurl_by_sock = (sock) => {
     let proto = sock.handshake.headers['x-forwarded-proto'] || 'http';
     let port = sock.handshake.headers['x-forwarded-port'];
     let url = `${proto}://${host}`
-    if(port) url = url + `:${port}`
+    if (port) url = url + `:${port}`
     // console.log(sock.handshake.headers);
     // console.log(url);
     return url;
@@ -45,20 +46,45 @@ let get_myurl_by_sock = (sock) => {
 
 
 function sign_token_1h(data) {
-    return jwt.sign(data, credential.token_key, { expiresIn: '1h' });
+    return jwt.sign(data, credential.mch_token_key, { expiresIn: '1h' });
 }
 function sign_token(data) {
-    return jwt.sign(data, credential.token_key);
+    return jwt.sign(data, credential.mch_token_key);
+}
+function sign_usr_token(data) {
+    return jwt.sign(data, credential.usr_token_key);
+}
+function verify_usr_token(token) {
+    return new Promise((resolve, reject) => {
+        jwt.verify(token, credential.usr_token_key, (err, decoded) => {
+            if (err) {
+                reject(err)
+            } else {
+                resolve(decoded);
+            }
+        });
+    })
+}
+function verify_mch_token(token) {
+    return new Promise((resolve, reject) => {
+        jwt.verify(token, credential.mch_token_key, (err, decoded) => {
+            if (err) {
+                reject(err)
+            } else {
+                resolve(decoded);
+            }
+        });
+    })
 }
 function verify_token(token, cb) {
-    jwt.verify(token, credential.token_key, cb);
+    jwt.verify(token, credential.mch_token_key, cb);
 }
 function verify_req(data, judge) {
     return new Promise((resolve, reject) => {
         if (!data.token || !data.body || !data.total_fee) {
             reject('wrong parameters')
         } else {
-            if(judge && !judge(data) ){
+            if (judge && !judge(data)) {
                 reject('wrong parameters')
             } else {
                 verify_token(data.token, (err, decoded) => {
@@ -68,14 +94,14 @@ function verify_req(data, judge) {
                         resolve(decoded);
                     }
                 })
-            }            
+            }
         }
     })
 }
 //two type of token: mch_token, usr_token
 function verify_usr(data) {
     return new Promise((resolve, reject) => {
-        if(data.token){
+        if (data.token) {
             verify_token(data.token, (err, decoded) => {
                 if (err) {
                     reject(err)
@@ -87,11 +113,11 @@ function verify_usr(data) {
             })
         } else {
             reject('no login info presents')
-        }        
+        }
     })
 }
-function change_order_state_to_refund(out_trade_no){
-    return m_db.collection('orders').updateOne({out_trade_no},{$set:{state:'已退款'}})
+function change_order_state_to_refund(out_trade_no) {
+    return m_db.collection('orders').updateOne({ out_trade_no }, { $set: { state: '已退款' } })
 }
 function notify_or_save_pay_result(order_id, resp, io, res) {
     function find_and_delete(data) {
@@ -114,7 +140,27 @@ function notify_or_save_pay_result(order_id, resp, io, res) {
                         time_begin: moment(o.createdAt).format("YYYY-MM-DD HH:mm:ss"),
                         time_end: moment().format("YYYY-MM-DD HH:mm:ss")
                     }
-                    io.to(o.sock_id).emit('pay_result', order);
+                    if (o.notify_url) {
+                        (function post_result() {
+                            request.post(
+                                {
+                                    // timeout: 2000,
+                                    url: o.notify_url,
+                                    json: { ret: 0, order }
+                                },
+                                (err, httpResponse, body) => {
+                                    if (err) {
+                                        console.error(`post to ${o.notify_url} failed`, err);
+                                        setTimeout(post_result, 10 * 1000)
+                                    }
+                                    else {
+                                        console.log(o.notify_url + " return:" + JSON.stringify(body));
+                                    }
+                                }
+                            );
+                        })()
+                    }
+                    o.sock_id && io.to(o.sock_id).emit('pay_result', order);
                     m_db.collection('orders').insert(order)
                     res.end('success');
                 } else {
@@ -163,11 +209,15 @@ function notify_or_save_pay_result(order_id, resp, io, res) {
     }
     find_and_delete(resp)
 }
-function hash_str(str){
+
+function hash_str(str) {
     return crypto.createHash('md5').update(str).digest("hex");
 }
 
 module.exports = {
+    sign_usr_token,
+    verify_usr_token,
+    verify_mch_token,
     is_sock,
     hash_str,
     get_ip_by_sock,
