@@ -78,15 +78,15 @@ function do_job() {
                     })
                 )
                 .value()
-
-                let day = moment().format("YYYY-MM-DD");
-                today_income = nunjucks.renderString(tmpl, { 
-                    day,
-                    today_income,
-                    total
-                });
-
-                mail.send(`智慧旅游支付平台(${day})销售通知`, null, today_income)
+                if(_.size(total) > 0 ){
+                    let day = moment().format("YYYY-MM-DD");
+                    today_income = nunjucks.renderString(tmpl, { 
+                        day,
+                        today_income,
+                        total
+                    });
+                    mail.send(`智慧旅游支付平台(${day})销售通知`, null, today_income)
+                }                
         }))
 }
 

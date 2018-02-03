@@ -29,9 +29,9 @@
         function (resp) {
           if (resp.err_msg == "get_brand_wcpay_request:ok") {
             // 此处可以使用此方式判断前端返回,微信团队郑重提示：res.err_msg 将在用户支付成功后返回ok，但并不保证它绝对可靠，。
-            window.location.href = "{{rurl}}" + '?' + $.param({ ret: 0 });
+            window.location.href = "{{rurl}}" + '?' + $.param({ ret: 0, order_id:"{{order_id}}" });
           } else {
-            window.location.href = "{{rurl}}" + '?' + $.param({ ret: -1, msg: resp.err_msg });
+            window.location.href = "{{rurl}}" + '?' + $.param({ ret: -1, order_id:"{{order_id}}", msg: resp.err_msg });
           }
         });
     }

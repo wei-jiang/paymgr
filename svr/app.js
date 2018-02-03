@@ -166,11 +166,11 @@ app.get('/api/wx_gzh_relay.html', (req, res) => {
     const nurl = req.query['nurl'];
     const price = req.query['price'];
     const token = req.query['token'];
-    const order_id = req.query['oid'];
+    const order_id = req.query['oid'] || 'gzh_' + moment().format("YYYYMMDDHHmmssSSS");
     const desc = req.query['desc'];
     const sess = req.session;
     // console.log('/api/wx_gzh_relay.html, qdata=' + JSON.stringify(req.query));
-    if (!rurl || !desc || !nurl || !price || !token || !order_id) {
+    if (!rurl || !desc || !nurl || !price || !token) {
         // res.writeHead(200, {"Content-Type": "text/html; charset=utf-8"});
         return res.end('wrong parameters');
     }

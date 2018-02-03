@@ -365,6 +365,7 @@ function handle_pay_event(app, io) {
                         // console.log(data);
                         m_db.collection('pending_order').insert(data)
                         prepay.rurl = sess.rurl
+                        prepay.order_id = data.out_trade_no
                         res.render('gzh_relay.html', prepay);
                     } else {
                         throw wx_res.err_code_des
