@@ -1,6 +1,7 @@
 const java = require("java");
 const moment = require('moment');
 const _ = require('lodash');
+const querystring = require('querystring');
 const credential = require('../secret')
 const util = require('../common/util')
 const mail = require('./mail');
@@ -329,8 +330,12 @@ function req_pay_qr(req, data, cb) {
                 data.trade_type = '支付宝正扫';
                 delete data.token;
                 m_db.collection('pending_order').insert(data)
-                // console.log(res.qr_code)
-                cb({ret:0, code_url:res.qr_code})
+                if(res.qr_code){                    
+                    cb({ret:0, code_url:res.qr_code})
+                }else {
+                    console.log("generate ali qr code failed", res)
+                    cb({ret:-1, msg:res.sub_msg})
+                }
             } else {
                 throw '无商户授权码'
             }

@@ -142,18 +142,22 @@ function notify_or_save_pay_result(order_id, resp, io, res) {
                     }
                     if (o.notify_url) {
                         (function post_result() {
+                            const post_data = { ret: 0, order }
+                            winston.info(`post to ${o.notify_url}, data=${JSON.stringify(post_data)}`)
                             request.post(
                                 {
                                     // timeout: 2000,
                                     url: o.notify_url,
-                                    json: { ret: 0, order }
+                                    json: post_data
                                 },
                                 (err, httpResponse, body) => {
                                     if (err) {
                                         console.error(`post to ${o.notify_url} failed`, err);
+                                        winston.error(`post to ${o.notify_url} failed, err_msg=${JSON.stringify(err)}, retry after 10 seconds`)
                                         setTimeout(post_result, 10 * 1000)
                                     }
                                     else {
+                                        winston.info(`post to ${o.notify_url} success, return:${body}`)
                                         console.log(o.notify_url + " return:" + JSON.stringify(body));
                                     }
                                 }
