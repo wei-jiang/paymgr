@@ -39,7 +39,7 @@ function get_req_obj(sock_or_req, data, decoded) {
     data.sub_mch_id = decoded.wx_id;
     data.spbill_create_ip = util.is_sock(sock_or_req) ? util.get_ip_by_sock(sock_or_req) : util.get_ip_by_req(sock_or_req);
     data.total_fee = parseInt(data.total_fee)
-    data.out_trade_no = data.out_trade_no || moment().format("freego_YYYYMMDDHHmmssSSS")
+    data.out_trade_no = data.out_trade_no || 'freego_' + moment().format("YYYYMMDDHHmmssSSS")
     delete data.token;
     //above as order info to save in db
     return {

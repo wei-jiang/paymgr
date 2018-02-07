@@ -58,7 +58,7 @@ function handle_pay_event(app, io) {
                 // console.log('get_auth_token return:', res)
                 res = JSON.parse(res).alipay_open_auth_token_app_response
                 // console.log('before get usr info', res)
-                m_db.collection('merchant')
+                res.app_auth_token && m_db.collection('merchant')
                     .update({ aly_id: res.user_id }, {
                         $set: {
                             'ali.app_auth_token': res.app_auth_token,
@@ -206,8 +206,9 @@ function get_req_obj(sock_or_req, data, decoded) {
     data.total_fee = parseInt(data.total_fee)
     data.sub_mch_id = decoded.aly_id;
     data.spbill_create_ip = util.is_sock(sock_or_req)? util.get_ip_by_sock(sock_or_req) : util.get_ip_by_req(sock_or_req);
-    data.out_trade_no = data.out_trade_no || moment().format("freego_YYYYMMDDHHmmssSSS")
+    data.out_trade_no = data.out_trade_no || 'freego_' + moment().format("YYYYMMDDHHmmssSSS")
     data.store_id = data.store_id || 'cs001'
+    delete data.token;
     //above as order info to save in db
     return {
         store_id: data.store_id,
@@ -267,48 +268,35 @@ function req_alipay_qr(sock, data, cb) {
 
 }
 function req_auth_pay(sock, data, cb) {
-    util.verify_req(data, () => data.auth_code)
-        .then(decoded => {
-            console.log('decoded=', decoded)
+    (async () => {
+        try{
+            let decoded = await util.verify_req(data, () => data.auth_code)
             if (decoded.ali && decoded.ali.app_auth_token) {
-                let reqObj = get_req_obj(sock, data, decoded)
+				let reqObj = get_req_obj(sock, data, decoded)
                 reqObj.auth_code = data.auth_code
                 reqObj.scene = "bar_code"
-                ali_pay.trade_pay(JSON.stringify(reqObj), decoded.ali.app_auth_token, (err, res) => {
-                    if (err) {
-                        console.log(err, res)
-                        cb({
-                            ret: -1,
-                            msg: err
-                        })
-                    } else {
-                        res = JSON.parse(res).alipay_trade_pay_response;
-                        console.log(res)
-                        // data.sock_id = sock.id;
-                        // data.createdAt = new Date();
-                        // data.out_trade_no = reqObj.out_trade_no;
-                        // data.sub_mch_id = decoded.aly_id;
-                        // data.trade_type = '支付宝反扫';
-                        // m_db.collection('pending_order').insert(data)
-
-                        // res.code_url = res.qr_code  //把支付宝格式转成微信格式返回客户端
-                        cb(res)
-                    }
-                })
+                let res = await ali_pay.trade_payPromise(JSON.stringify(reqObj), decoded.ali.app_auth_token)
+				res = JSON.parse(res).alipay_trade_pay_response;
+				console.log(res)
+				if (res.code == '10000') {
+                    cb({
+                        ret: 0,
+                        msg: '支付成功(交易完成)'
+                    });
+                    data.trade_type = '支付宝反扫';
+                    m_db.collection('orders').insert(data)
+                } else if (1) {
+                    throw res.sub_msg || res.msg
+                }
             } else {
-                cb({
-                    ret: -1,
-                    msg: '无商户授权码'
-                })
+                throw '无商户授权码'
             }
-        })
-        .catch(err => {
-            console.log(err);
-            cb({
-                ret: -1,
-                msg: err
-            })
-        });
+        } catch (err) {
+            // console.log( err )
+            cb({ ret: -1, msg: err });
+        }
+        return "done"
+    })() 
 }
 module.exports = {
     handle_pay_event,

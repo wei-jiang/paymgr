@@ -355,6 +355,24 @@ io.on('connection', socket => {
             }
         })
     });
+    socket.on('verify_mch_token', (mch_token, cb) => {
+        (async () => {
+            try{
+                let ability = 0;
+                let decoded = await util.verify_mch_token(mch_token)
+                if(decoded.wx_id) ability |= def.PAY_TYPE.WX_FS
+                if (decoded.ali && decoded.ali.app_auth_token) {
+                    ability |= def.PAY_TYPE.ALI_FS
+                } 
+                cb({ ret: 0, info:{name : decoded.name, ability} });
+            } catch (err) {
+                // console.log( err )
+                cb({ ret: -1, msg: err });
+            }
+            return "done"
+        })() 
+    });
+    
     /////////////////////////////////////////////////
     //below are mch mgr apis, every api need token of user info
     socket.on('find_orders', (data, cb) => {
