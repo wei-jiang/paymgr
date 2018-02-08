@@ -272,7 +272,8 @@ function req_auth_pay(sock, data, cb) {
         try{
             let decoded = await util.verify_req(data, () => data.auth_code)
             if (decoded.ali && decoded.ali.app_auth_token) {
-				let reqObj = get_req_obj(sock, data, decoded)
+                let reqObj = get_req_obj(sock, data, decoded)
+                data.time_begin = moment().format("YYYY-MM-DD HH:mm:ss")
                 reqObj.auth_code = data.auth_code
                 reqObj.scene = "bar_code"
                 let res = await ali_pay.trade_payPromise(JSON.stringify(reqObj), decoded.ali.app_auth_token)
@@ -284,6 +285,7 @@ function req_auth_pay(sock, data, cb) {
                         msg: '支付成功(交易完成)'
                     });
                     data.trade_type = '支付宝反扫';
+                    data.time_end = moment().format("YYYY-MM-DD HH:mm:ss")
                     m_db.collection('orders').insert(data)
                 } else if (1) {
                     throw res.sub_msg || res.msg

@@ -52,9 +52,15 @@ function get_req_obj(sock_or_req, data, decoded) {
     };
 }
 function req_micropay(sock, data, cb) {
+    function save_order(od){
+        od.trade_type = '微信反扫';
+        od.time_end = moment().format("YYYY-MM-DD HH:mm:ss")
+        m_db.collection('orders').insert(od)
+    }
     util.verify_req(data, () => data.auth_code)
         .then(decoded => {
             let reqObj = get_req_obj(sock, data, decoded)
+            data.time_begin = moment().format("YYYY-MM-DD HH:mm:ss")
             reqObj.auth_code = data.auth_code;
             delete reqObj.notify_url;
             return wxpay.microPay(reqObj)
@@ -67,8 +73,7 @@ function req_micropay(sock, data, cb) {
                         ret: 0,
                         msg: '支付成功(交易完成)'
                     });
-                    data.trade_type = '微信反扫';
-                    m_db.collection('orders').insert(data)
+                    save_order(data)
                 } else if (res.result_code == 'USERPAYING') {
                     cb({
                         ret: -1,
@@ -77,8 +82,7 @@ function req_micropay(sock, data, cb) {
                     (function q_order_state(count) {
                         setTimeout(_.partial(order_query, sock, data, r => {
                             if (r.ret == 0) {
-                                data.trade_type = '微信反扫';
-                                m_db.collection('orders').insert(data)
+                                save_order(data)
                             } else {
                                 if (count > 0) {
                                     q_order_state(--count)
@@ -103,8 +107,7 @@ function req_micropay(sock, data, cb) {
                     (function q_order_state(count) {
                         setTimeout(_.partial(order_query, sock, data, r => {
                             if (r.ret == 0) {
-                                data.trade_type = '微信反扫';
-                                m_db.collection('orders').insert(data)
+                                save_order(data)
                             } else {
                                 if (count > 0) {
                                     q_order_state(--count)
