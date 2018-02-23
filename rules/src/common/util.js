@@ -50,10 +50,12 @@ function show_noty(msg) {
 }
 function show_confirm(msg, yes, no) {
     let n = new Noty({
+        layout: 'center',
         text: msg,
         buttons: [
             Noty.button('确定', 'btn btn-success', function () {
                 yes && yes();
+                n.close();
             }, { id: 'button1', 'data-status': 'ok' }),
 
             Noty.button('取消', 'btn btn-error', function () {

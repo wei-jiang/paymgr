@@ -6,6 +6,12 @@
       </div>
     </header>
     <div class="content">
+      <div style="display:flex;text-align:center;">
+        <div>智慧旅游</div>
+        <button style="margin-left:auto;" class="btn btn-flat" @click="go_to_buy('智慧旅游')">
+          <i class="icon icon-arrow-forward with-circle"></i>
+        </button>
+      </div>          
 
       <ul class="list">
         <li class="divider">已入驻子商户</li>

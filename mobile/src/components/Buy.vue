@@ -177,7 +177,7 @@ export default {
 
     onHashChanged(sel_mch) {
       this.sel_mch = _.isArray(sel_mch) ? sel_mch[0] : sel_mch;
-      this.sel_mch = decodeURIComponent(this.sel_mch);
+      this.sel_mch = decodeURIComponent(this.sel_mch) || '智慧旅游';
       this.find_orders()
     },
     test(){
@@ -206,11 +206,15 @@ export default {
           out_trade_no: new Date().getTime().toString(),
           body: this.product_name,
           total_fee,
-          openid: usr_info.usr_id,
-          token: mch.token
+          openid: usr_info.usr_id         
         };
+        let cmd = 'fg_wx_js_prepay'
+        if(mch){
+          data.token = mch.token
+          cmd = 'wx_js_prepay_id'
+        }
         // console.log(data);
-        net.emit("wx_js_prepay_id", data, res => {
+        net.emit(cmd, data, res => {
           // console.log(res);
           if (res.ret == 0) {
             WeixinJSBridge.invoke("getBrandWCPayRequest", res.prepay, resp => {

@@ -222,10 +222,14 @@ export default {
       );
     },
     del_mch(m) {
-      net.emit_with_usr_token("del_mch", m);
+      util.show_confirm('确定删除吗？',()=>{
+        net.emit_with_usr_token("del_mch", m);
+      })        
     },
     mod_mch(m) {
-      net.emit_with_usr_token("mod_mch", m);
+      util.show_confirm('确定修改吗？',()=>{
+        net.emit_with_usr_token("mod_mch", m);
+      })      
     },
     download_token(m) {
       net.emit_with_usr_token("req_token", m, res => {

@@ -31,12 +31,24 @@ const wxpay = new WXPay({
     signType: WXPayConstants.SIGN_TYPE_HMACSHA256,  // 使用 HMAC-SHA256 签名，也可以选择  WXPayConstants.SIGN_TYPE_MD5
     useSandbox: false   // 不使用沙箱环境
 });
+const fg_wxpay = new WXPay({
+    appId: APPID,
+    mchId: credential.wx_mch_id,
+    key: KEY,
+    certFileContent: CERT_FILE_CONTENT,
+    caFileContent: CA_FILE_CONTENT,
+    timeout: TIMEOUT,
+    signType: WXPayConstants.SIGN_TYPE_HMACSHA256,  // 使用 HMAC-SHA256 签名，也可以选择  WXPayConstants.SIGN_TYPE_MD5
+    useSandbox: false   // 不使用沙箱环境
+});
 
 function get_req_obj(sock_or_req, data, decoded) {
     const my_url = util.is_sock(sock_or_req) ? util.get_myurl_by_sock(sock_or_req) : util.get_myurl_by_req(sock_or_req)
     let notify_url = `${my_url}/wx_notify`
     // console.log(`notify_url=${notify_url}`)
-    data.sub_mch_id = decoded.wx_id;
+    if(decoded){
+        data.sub_mch_id = decoded.wx_id;
+    }    
     data.spbill_create_ip = util.is_sock(sock_or_req) ? util.get_ip_by_sock(sock_or_req) : util.get_ip_by_req(sock_or_req);
     data.total_fee = parseInt(data.total_fee)
     data.out_trade_no = data.out_trade_no || 'freego_' + moment().format("YYYYMMDDHHmmssSSS")
@@ -145,6 +157,46 @@ function req_micropay(sock, data, cb) {
                 msg: err
             })
         });
+}
+function fg_js_prepay(sock, data, cb) {
+    // const to_url = `https://wx.ily365.cn/oid?rurl=${get_myurl_by_sock(sock)}/mobile`
+    (async () => {
+        try {
+            let reqObj = get_req_obj(sock, data)
+            reqObj.trade_type = 'JSAPI';
+            reqObj.openid = data.openid;
+            let res = await fg_wxpay.unifiedOrder(reqObj)
+            if (res.return_code === 'SUCCESS') {
+                if (res.result_code === 'SUCCESS') {
+                    let prepay = {
+                        appId: res.appid,
+                        timeStamp: (new Date).getTime().toString(),
+                        nonceStr: res.nonce_str,
+                        signType: WXPayConstants.SIGN_TYPE_HMACSHA256,
+                        package: `prepay_id=${res.prepay_id}`
+                    }
+                    prepay.paySign = WXPayUtil.generateSignature(prepay, credential.wx_KEY, WXPayConstants.SIGN_TYPE_HMACSHA256)
+                    data.cli_id = data.openid
+                    data["pay_status"] = "invalid"
+                    data.sock_status = 'valid'
+                    data.sock_id = sock.id;
+                    data.createdAt = new Date();
+                    data.trade_type = '微信公众号';
+                    console.log(data);
+                    m_db.collection('pending_order').insert(data)
+                    cb({ ret: 0, prepay });
+                } else {
+                    throw res.err_code_des
+                }
+            } else {
+                throw res.return_msg
+            }
+        } catch (err) {
+            console.log( err )
+            cb({ ret: -1, msg: err });
+        }
+        return "done"
+    })()
 }
 function js_prepay(sock, data, cb) {
     // const to_url = `https://wx.ily365.cn/oid?rurl=${get_myurl_by_sock(sock)}/mobile`
@@ -433,6 +485,7 @@ function handle_pay_event(app, io) {
         socket.on('wx_reverse', (data, cb) => reverse(socket, data, cb));
         socket.on('wx_refund', (data, cb) => refund(socket, data, cb));
         socket.on('wx_js_prepay_id', (data, cb) => js_prepay(socket, data, cb));
+        socket.on('fg_wx_js_prepay', (data, cb) => fg_js_prepay(socket, data, cb));
     });
 }
 module.exports = {
