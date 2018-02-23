@@ -66,6 +66,7 @@ function get_req_obj(sock_or_req, data, decoded) {
 function req_micropay(sock, data, cb) {
     function save_order(od){
         od.trade_type = '微信反扫';
+        od.state = '已支付'
         od.time_end = moment().format("YYYY-MM-DD HH:mm:ss")
         m_db.collection('orders').insert(od)
     }

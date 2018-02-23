@@ -285,6 +285,7 @@ function req_auth_pay(sock, data, cb) {
                         msg: '支付成功(交易完成)'
                     });
                     data.trade_type = '支付宝反扫';
+                    data.state = '已支付'
                     data.time_end = moment().format("YYYY-MM-DD HH:mm:ss")
                     m_db.collection('orders').insert(data)
                 } else if (1) {
