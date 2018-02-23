@@ -176,8 +176,8 @@ export default {
     onHidden() {},
 
     onHashChanged(sel_mch) {
-      this.sel_mch = _.isArray(sel_mch) ? sel_mch[0] : sel_mch;
-      this.sel_mch = decodeURIComponent(this.sel_mch) || '智慧旅游';
+      this.sel_mch = _.isArray(sel_mch) ? sel_mch[0] : sel_mch || '智慧旅游';
+      this.sel_mch = decodeURIComponent(this.sel_mch);
       this.find_orders()
     },
     test(){
