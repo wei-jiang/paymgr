@@ -14,6 +14,7 @@ class Net {
         this.sock = io();
         this.sock.on('connect', this.on_connect.bind(this));
         this.sock.on('mch_changed', this.on_mch_changed.bind(this));
+        this.sock.on('usr_changed', this.on_usr_changed.bind(this));
         this.sock.on('pay_result', this.on_pay_result.bind(this));
         this.sock.on('need_login_first', this.on_need_login_first.bind(this));
     }
@@ -50,6 +51,9 @@ class Net {
     }
     on_mch_changed(data) {
         window.vm.$emit('mch_changed', data);
+    }
+    on_usr_changed(data) {
+        window.vm.$emit('usr_changed', data);
     }
     on_pay_result(res) {
         console.log( '支付通知：'+JSON.stringify(res) )

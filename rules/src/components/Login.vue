@@ -1,5 +1,9 @@
 <template>
     <div>
+        <v-text-field
+              label="用户名"
+              v-model="usr_name"
+            ></v-text-field>    
         <div>
             <v-text-field
               label="用户密钥"
@@ -7,7 +11,7 @@
               multi-line
             ></v-text-field>           
         </div>
-        <v-btn color="info" v-if="usr_token" @click="login">登录</v-btn>
+        <v-btn color="info" v-if="usr_token && usr_name" @click="login">登录</v-btn>
     </div>     
 </template>
 
@@ -21,6 +25,7 @@ export default {
 
   data() {
     return {
+      usr_name: '',
       usr_token: ''
     };
   },
@@ -37,16 +42,17 @@ export default {
   },
   methods: {    
     login() {
-      if(this.usr_token){
-        net.emit("verify_user", this.usr_token, res => {
+      if(this.usr_name && this.usr_token){
+        net.emit("verify_user", {name:this.usr_name, token:this.usr_token}, res => {
           if(res.ret === 0){
             this.$root.$emit("login_success", this.usr_token )
           } else {
-            util.show_noty(`登陆失败`);
+            util.show_noty(`登陆失败:${ JSON.stringify(res.msg) }`);
           }
         })
       } else{
         //read token file here
+        util.show_noty(`请输入用户名和密钥`);
       }      
     }
   },

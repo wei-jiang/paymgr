@@ -16,6 +16,7 @@ const request = require('request');
 const _ = require('lodash');
 const moment = require('moment');
 const cron = require('./dealer/cron')
+const user = require('./dealer/user')
 const Ali = require('./dealer/aly')
 const Wx = require('./dealer/wx')
 const Redis = require('ioredis');
@@ -201,13 +202,10 @@ app.post('/api/qr_pay/result', (req, res) => {
     // console.log('/api/qr_pay/result, data=' + JSON.stringify(data));
     (async () => {
         try{
-            let decoded = await util.verify_usr(data)
-            if (decoded.ali && decoded.ali.app_auth_token) {
-                let order = await m_db.collection('orders').findOne({out_trade_no: data.order_id}, {projection:{_id: 0}})
-                res.json({ ret: 0, order });
-            } else {
-                throw '无商户授权码'
-            }
+            let decoded = await util.verify_mch_token(data.token)
+            let order = await m_db.collection('orders').findOne({out_trade_no: data.order_id}, {projection:{_id: 0}})
+            res.json({ ret: 0, order });
+
         } catch (err) {
             // console.log( err )
             res.json({ ret: -1, msg: err });
@@ -289,6 +287,7 @@ app.post('/api/qr_pay', (req, res) => {
 //     find_and_delete(resp)
 // });
 io.on('connection', socket => {
+    user.reg_user_dealer(socket, app)
     socket.on('disconnect', function () {
         m_db.collection('pending_order').updateMany(
             {
@@ -345,15 +344,20 @@ io.on('connection', socket => {
         }
         find_and_update(cli_uuid)
     });
-    socket.on('verify_user', (usr_token, cb) => {
-        // console.log('client_uuid', usr_token)
-        util.verify_token(usr_token, (err, decoded) => {
-            if (err) {
-                cb({ ret: -1, err })
-            } else {
-                cb({ ret: 0, user: decoded })
+    socket.on('verify_user', (data, cb) => {
+        // console.log('verify_user', data);
+        (async () => {
+            try{
+                let decoded = await util.verify_usr(data)
+                // console.log('verify_user decoded', decoded)
+                if(decoded.name != data.name) throw '用户名不匹配'
+                cb({ ret: 0, info: decoded });
+            } catch (err) {
+                // console.log( err )
+                cb({ ret: -1, msg: err });
             }
-        })
+            return "done"
+        })()
     });
     socket.on('verify_mch_token', (mch_token, cb) => {
         (async () => {

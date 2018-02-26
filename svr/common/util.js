@@ -48,14 +48,21 @@ let get_myurl_by_sock = (sock) => {
 function sign_token_1h(data) {
     return jwt.sign(data, credential.mch_token_key, { expiresIn: '1h' });
 }
+function sign_usr_token_10m(data) {
+    return jwt.sign(data, credential.usr_token_key, { expiresIn: '10m' });
+}
 function sign_token(data) {
     return jwt.sign(data, credential.mch_token_key);
+}
+function sign_token_with_pass(data, pass) {
+    return jwt.sign(data, pass);
 }
 function sign_usr_token(data) {
     return jwt.sign(data, credential.usr_token_key);
 }
 function verify_usr_token(token) {
     return new Promise((resolve, reject) => {
+        if(!token) return reject('no token info presents')
         jwt.verify(token, credential.usr_token_key, (err, decoded) => {
             if (err) {
                 reject(err)
@@ -100,21 +107,9 @@ function verify_req(data, judge) {
 }
 //two type of token: mch_token, usr_token
 function verify_usr(data) {
-    return new Promise((resolve, reject) => {
-        if (data.token) {
-            verify_token(data.token, (err, decoded) => {
-                if (err) {
-                    reject(err)
-                } else {
-                    //remove token
-                    delete data.token;
-                    resolve(decoded);
-                }
-            })
-        } else {
-            reject('no login info presents')
-        }
-    })
+    const ret = verify_usr_token(data.token)
+    delete data.token;
+    return ret
 }
 function change_order_state_to_refund(out_trade_no) {
     return m_db.collection('orders').updateOne({ out_trade_no }, { $set: { state: '已退款' } })
@@ -219,6 +214,8 @@ function hash_str(str) {
 }
 
 module.exports = {
+    sign_usr_token_10m,
+    sign_token_with_pass,
     sign_usr_token,
     verify_usr_token,
     verify_mch_token,
