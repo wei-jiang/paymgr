@@ -7,6 +7,25 @@ const mongo = require('mongodb'),
 const util = require('../common/util')
 
 function reg_user_dealer(socket, app){
+    app.post('/reg_app_usr', (req, res) => {
+        const data = req.body;
+        (async () => {
+            try {
+                let usr = await util.verify_usr_token(data.token)
+                if( !(usr.name && usr.email && usr.password) ){
+                    throw 'invalid token'
+                }
+                const pass = usr.password
+                delete usr.password;
+                usr.token = util.sign_token_with_pass(usr, pass)
+                res.json({ ret: 0, user: usr });
+            } catch (err) {
+                console.log(err)
+                res.json({ ret: -1, msg: err });
+            }
+            return "done"
+        })()
+    })
     socket.on('gen_usr_token', (data, cb) => {
         // console.log('in gen_usr_token', data)
         util.verify_usr(data)

@@ -74,7 +74,7 @@ export default {
       users: [],
       def_usr:{
         name:'张三',
-        email:'eva@163.com',
+        email:'eva@cninone.com',
         password:'123456'
       }
     };
