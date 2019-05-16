@@ -1,17 +1,10 @@
-const java = require("java");
+
 const moment = require('moment');
 const _ = require('lodash');
 const querystring = require('querystring');
 const credential = require('../secret')
 const util = require('../common/util')
 const mail = require('./mail');
-java.classpath.push("./jar/kotlin_bridge-all.jar");
-java.asyncOptions = {
-    syncSuffix: "Sync",
-    asyncSuffix: "",
-    promiseSuffix: "Promise",   // Generate methods returning promises, using the suffix Promise.
-    promisify: require("when/node").lift
-};
 
 const AliPay = java.import('freego.AliPay');
 const ali_pay = new AliPay()
@@ -297,6 +290,39 @@ function req_auth_pay(sock, data, cb) {
         } catch (err) {
             // console.log( err )
             cb({ ret: -1, msg: err });
+        }
+        return "done"
+    })() 
+}
+function post_auth_pay(data, decoded, res) {
+    (async () => {
+        try{
+            if (decoded.ali && decoded.ali.app_auth_token) {
+                let reqObj = get_req_obj(sock, data, decoded)
+                data.time_begin = moment().format("YYYY-MM-DD HH:mm:ss")
+                reqObj.auth_code = data.auth_code
+                reqObj.scene = "bar_code"
+                let res = await ali_pay.trade_payPromise(JSON.stringify(reqObj), decoded.ali.app_auth_token)
+				res = JSON.parse(res).alipay_trade_pay_response;
+				console.log(res)
+				if (res.code == '10000') {
+                    res.json({
+                        ret: 0,
+                        msg: '支付成功(交易完成)'
+                    });
+                    data.trade_type = '支付宝反扫';
+                    data.state = '已支付'
+                    data.time_end = moment().format("YYYY-MM-DD HH:mm:ss")
+                    m_db.collection('orders').insert(data)
+                } else if (1) {
+                    throw res.sub_msg || res.msg
+                }
+            } else {
+                throw '无商户授权码'
+            }
+        } catch (err) {
+            // console.log( err )
+            res.json({ ret: -1, msg: err });
         }
         return "done"
     })() 

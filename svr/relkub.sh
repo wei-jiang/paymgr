@@ -1,19 +1,25 @@
 #!/bin/bash
-# --exclude='*.map'
 
-tar --exclude='./node_modules' --exclude='./.vscode' --exclude='./relkub.sh' \
- --exclude='./paymgr.tar.gz' --exclude='./.git' \
- -zcvf paymgr.tar.gz . 
+pkg -t node10-linux-x64 app.js
+mv ./app ../tmp/
+cd ../tmp/
 
 CMD=$(cat <<-END
-set -x
-cd /data/apps/paymgr
-tar zxvf ./paymgr.tar.gz -C .
-npm i
+sudo supervisorctl restart paymgr
 #node app.js
-pm2 reload paymgr
+
 END
 )
-
-scp ./paymgr.tar.gz kub:/data/apps/paymgr/
+# need first stop app and then copy
+scp -r * kub:/data/apps/paymgr/
 ssh kub "$CMD"
+
+# [program:paymgr]
+# directory=/data/apps/paymgr/
+# command=/data/apps/paymgr/app
+# autostart=true
+# autorestart=true
+
+# sudo supervisorctl reread
+# sudo supervisorctl update
+# sudo supervisorctl start paymgr

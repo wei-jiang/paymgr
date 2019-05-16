@@ -1,6 +1,6 @@
 const CronJob = require('cron').CronJob;
 const mail = require('./mail');
-const stat = require('./statistic');
+const stat = require('./stat');
 
 const job = new CronJob('55 59 23 * * *', ()=> {
   // console.log('send report mail');

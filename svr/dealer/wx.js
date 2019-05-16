@@ -1,524 +1,705 @@
-const fs = require('fs');
-const moment = require('moment');
-const _ = require('lodash');
-const iconv = require('iconv-lite');
-const querystring = require('querystring');
-const credential = require('../secret')
-const mongo = require('mongodb'),
-    ObjectId = mongo.ObjectID,
-    Binary = mongo.Binary;
 
-const WXPay = require('wxpay.js').WXPay;
-const WXPayUtil = require('wxpay.js').WXPayUtil;
-const WXPayConstants = require('wxpay.js').WXPayConstants;
 
-const util = require('../common/util')
+const request = require('request');
+const xml2js  = require('xml2js');
+const uuid    = require('uuid');
+const crypto = require("crypto");
 
-const APPID = credential.wx_APPID,
-    MCHID = credential.wx_MCHID,
-    KEY = credential.wx_KEY,
-    CERT_FILE_CONTENT = fs.readFileSync('./keys/apiclient_cert.p12'),
-    CA_FILE_CONTENT = fs.readFileSync('./keys/rootca.pem'),
-    TIMEOUT = 10000; // 毫秒
+const _DEFAULT_TIMEOUT = 10*1000; // ms
 
-const wxpay = new WXPay({
-    appId: APPID,
-    mchId: MCHID,
-    key: KEY,
-    certFileContent: CERT_FILE_CONTENT,
-    caFileContent: CA_FILE_CONTENT,
-    timeout: TIMEOUT,
-    signType: WXPayConstants.SIGN_TYPE_HMACSHA256,  // 使用 HMAC-SHA256 签名，也可以选择  WXPayConstants.SIGN_TYPE_MD5
-    useSandbox: false   // 不使用沙箱环境
-});
-const fg_wxpay = new WXPay({
-    appId: APPID,
-    mchId: credential.wx_mch_id,
-    key: KEY,
-    certFileContent: CERT_FILE_CONTENT,
-    caFileContent: CA_FILE_CONTENT,
-    timeout: TIMEOUT,
-    signType: WXPayConstants.SIGN_TYPE_HMACSHA256,  // 使用 HMAC-SHA256 签名，也可以选择  WXPayConstants.SIGN_TYPE_MD5
-    useSandbox: false   // 不使用沙箱环境
-});
+const WXPayConstants = {
 
-function get_req_obj(sock_or_req, data, decoded) {
-    const my_url = util.is_sock(sock_or_req) ? util.get_myurl_by_sock(sock_or_req) : util.get_myurl_by_req(sock_or_req)
-    let notify_url = `${my_url}/wx_notify`
-    // console.log(`notify_url=${notify_url}`)
-    if(decoded){
-        data.sub_mch_id = decoded.wx_id;
-    }    
-    data.spbill_create_ip = util.is_sock(sock_or_req) ? util.get_ip_by_sock(sock_or_req) : util.get_ip_by_req(sock_or_req);
-    data.total_fee = parseInt(data.total_fee)
-    data.out_trade_no = data.out_trade_no || 'freego_' + moment().format("YYYYMMDDHHmmssSSS")
-    delete data.token;
-    //above as order info to save in db
-    return {
-        body: data.body,
-        sub_mch_id: data.sub_mch_id,
-        out_trade_no: data.out_trade_no,
-        total_fee: data.total_fee,
-        spbill_create_ip: data.spbill_create_ip,
-        notify_url: notify_url
-    };
-}
-function req_micropay(sock, data, cb) {
-    function save_order(od){
-        od.trade_type = '微信反扫';
-        od.state = '已支付'
-        od.time_end = moment().format("YYYY-MM-DD HH:mm:ss")
-        m_db.collection('orders').insert(od)
-    }
-    util.verify_req(data, () => data.auth_code)
-        .then(decoded => {
-            let reqObj = get_req_obj(sock, data, decoded)
-            data.time_begin = moment().format("YYYY-MM-DD HH:mm:ss")
-            reqObj.auth_code = data.auth_code;
-            delete reqObj.notify_url;
-            return wxpay.microPay(reqObj)
-        })
-        .then(res => {
-            // console.log(res);
-            if (res.return_code == 'SUCCESS') {
-                if (res.result_code == 'SUCCESS') {
-                    cb({
-                        ret: 0,
-                        msg: '支付成功(交易完成)'
-                    });
-                    save_order(data)
-                } else if (res.result_code == 'USERPAYING') {
-                    cb({
-                        ret: -1,
-                        msg: `${res.err_code_des}（请稍候）`
-                    });
-                    (function q_order_state(count) {
-                        setTimeout(_.partial(order_query, sock, data, r => {
-                            if (r.ret == 0) {
-                                save_order(data)
-                            } else {
-                                if (count > 0) {
-                                    q_order_state(--count)
-                                } else {
-                                    reverse(sock, data, r => {
+  // SUCCESS, FAIL
+  SUCCESS : "SUCCESS",
+  FAIL : "FAIL",
 
-                                    })
-                                }
-                            }
-                            sock.emit('update_order_state', {
-                                ret: r.ret,
-                                out_trade_no: data.out_trade_no,
-                                state: r.msg
-                            })
-                        }), 3 * 1000)
-                    })(10)
-                } else if (res.result_code == 'SYSTEMERROR') {
-                    cb({
-                        ret: -1,
-                        msg: `${res.err_code_des}（请稍候）`
-                    });
-                    (function q_order_state(count) {
-                        setTimeout(_.partial(order_query, sock, data, r => {
-                            if (r.ret == 0) {
-                                save_order(data)
-                            } else {
-                                if (count > 0) {
-                                    q_order_state(--count)
-                                } else {
-                                    reverse(sock, data, r => {
+  // 签名类型
+  SIGN_TYPE_HMACSHA256 : "HMAC-SHA256",
+  SIGN_TYPE_MD5 : "MD5",
 
-                                    })
-                                }
-                            }
-                            sock.emit('update_order_state', {
-                                ret: r.ret,
-                                out_trade_no: data.out_trade_no,
-                                state: r.msg
-                            })
-                        }), 3000)
-                    })(10)
-                } else {
-                    cb({
-                        ret: -1,
-                        msg: `交易失败：${res.err_code_des}`
-                    });
-                }
-            } else {
-                cb({
-                    ret: -1,
-                    msg: `交易失败：${res.return_msg}`
-                });
-            }
-            // cb(res);
-        })
-        .catch(err => {
-            console.log(err);
-            cb({
-                ret: -1,
-                msg: err
-            })
-        });
-}
-function fg_js_prepay(sock, data, cb) {
-    // const to_url = `https://wx.ily365.cn/oid?rurl=${get_myurl_by_sock(sock)}/mobile`
-    (async () => {
-        try {
-            let reqObj = get_req_obj(sock, data)
-            reqObj.trade_type = 'JSAPI';
-            reqObj.openid = data.openid;
-            let res = await fg_wxpay.unifiedOrder(reqObj)
-            if (res.return_code === 'SUCCESS') {
-                if (res.result_code === 'SUCCESS') {
-                    let prepay = {
-                        appId: res.appid,
-                        timeStamp: (new Date).getTime().toString(),
-                        nonceStr: res.nonce_str,
-                        signType: WXPayConstants.SIGN_TYPE_HMACSHA256,
-                        package: `prepay_id=${res.prepay_id}`
-                    }
-                    prepay.paySign = WXPayUtil.generateSignature(prepay, credential.wx_KEY, WXPayConstants.SIGN_TYPE_HMACSHA256)
-                    data.cli_id = data.openid
-                    data["pay_status"] = "invalid"
-                    data.sock_status = 'valid'
-                    data.sock_id = sock.id;
-                    data.createdAt = new Date();
-                    data.trade_type = '微信公众号';
-                    console.log(data);
-                    m_db.collection('pending_order').insert(data)
-                    cb({ ret: 0, prepay });
-                } else {
-                    throw res.err_code_des
-                }
-            } else {
-                throw res.return_msg
-            }
-        } catch (err) {
-            console.log( err )
-            cb({ ret: -1, msg: err });
+  // 字段
+  FIELD_SIGN : "sign",
+  FIELD_SIGN_TYPE : "sign_type",
+
+  // URL
+  MICROPAY_URL : "https://api.mch.weixin.qq.com/pay/micropay",
+  UNIFIEDORDER_URL : "https://api.mch.weixin.qq.com/pay/unifiedorder",
+  ORDERQUERY_URL : "https://api.mch.weixin.qq.com/pay/orderquery",
+  REVERSE_URL : "https://api.mch.weixin.qq.com/secapi/pay/reverse",
+  CLOSEORDER_URL : "https://api.mch.weixin.qq.com/pay/closeorder",
+  REFUND_URL : "https://api.mch.weixin.qq.com/secapi/pay/refund",
+  REFUNDQUERY_URL : "https://api.mch.weixin.qq.com/pay/refundquery",
+  DOWNLOADBILL_URL : "https://api.mch.weixin.qq.com/pay/downloadbill",
+  REPORT_URL : "https://api.mch.weixin.qq.com/payitil/report",
+  SHORTURL_URL : "https://api.mch.weixin.qq.com/tools/shorturl",
+  AUTHCODETOOPENID_URL : "https://api.mch.weixin.qq.com/tools/authcodetoopenid",
+  ADDSELLER_URL : "https://api.mch.weixin.qq.com/secapi/mch/submchmanage?action=add",
+
+  // Sandbox URL
+  SANDBOX_MICROPAY_URL : "https://api.mch.weixin.qq.com/sandboxnew/pay/micropay",
+  SANDBOX_UNIFIEDORDER_URL : "https://api.mch.weixin.qq.com/sandboxnew/pay/unifiedorder",
+  SANDBOX_ORDERQUERY_URL : "https://api.mch.weixin.qq.com/sandboxnew/pay/orderquery",
+  SANDBOX_REVERSE_URL : "https://api.mch.weixin.qq.com/sandboxnew/secapi/pay/reverse",
+  SANDBOX_CLOSEORDER_URL : "https://api.mch.weixin.qq.com/sandboxnew/pay/closeorder",
+  SANDBOX_REFUND_URL : "https://api.mch.weixin.qq.com/sandboxnew/secapi/pay/refund",
+  SANDBOX_REFUNDQUERY_URL : "https://api.mch.weixin.qq.com/sandboxnew/pay/refundquery",
+  SANDBOX_DOWNLOADBILL_URL : "https://api.mch.weixin.qq.com/sandboxnew/pay/downloadbill",
+  SANDBOX_REPORT_URL : "https://api.mch.weixin.qq.com/sandboxnew/payitil/report",
+  SANDBOX_SHORTURL_URL : "https://api.mch.weixin.qq.com/sandboxnew/tools/shorturl",
+  SANDBOX_AUTHCODETOOPENID_URL : "https://api.mch.weixin.qq.com/sandboxnew/tools/authcodetoopenid",
+  SANDBOX_ADDSELLER_URL : "https://api.mch.weixin.qq.com/sandboxnew/secapi/mch/submchmanage?action=add",
+};
+
+const WXPayUtil = {
+
+  /**
+   * XML 字符串转换成 object
+   *
+   * @param {string} xmlStr
+   * @returns {Promise}
+   */
+  xml2obj(xmlStr) {
+    // console.log(xmlStr);
+    return new Promise( (resolve, reject)=>{
+      var parseString = xml2js.parseString;
+      parseString(xmlStr, (err, result)=> {
+        if (err) {
+          reject(err);
         }
-        return "done"
-    })()
-}
-function js_prepay(sock, data, cb) {
-    // const to_url = `https://wx.ily365.cn/oid?rurl=${get_myurl_by_sock(sock)}/mobile`
-    (async () => {
-        try {
-            let decoded = await util.verify_req(data)
-            let reqObj = get_req_obj(sock, data, decoded)
-            reqObj.trade_type = 'JSAPI';
-            reqObj.openid = data.openid;
-            let res = await wxpay.unifiedOrder(reqObj)
-            if (res.return_code === 'SUCCESS') {
-                if (res.result_code === 'SUCCESS') {
-                    let prepay = {
-                        appId: res.appid,
-                        timeStamp: (new Date).getTime().toString(),
-                        nonceStr: res.nonce_str,
-                        signType: WXPayConstants.SIGN_TYPE_HMACSHA256,
-                        package: `prepay_id=${res.prepay_id}`
-                    }
-                    prepay.paySign = WXPayUtil.generateSignature(prepay, credential.wx_KEY, WXPayConstants.SIGN_TYPE_HMACSHA256)
-                    data.cli_id = data.openid
-                    data["pay_status"] = "invalid"
-                    data.sock_status = 'valid'
-                    data.sock_id = sock.id;
-                    data.createdAt = new Date();
-                    data.trade_type = '微信公众号';
-                    // console.log(data);
-                    m_db.collection('pending_order').insert(data)
-                    cb({ ret: 0, prepay });
-                } else {
-                    throw res.err_code_des
-                }
-            } else {
-                throw res.return_msg
-            }
-        } catch (err) {
-            // console.log( err )
-            cb({ ret: -1, msg: err });
+        else {
+          // console.log(result);
+          var data = result['xml'];
+          var newData = {};
+          Object.keys(data).forEach((key, idx)=> {
+            if (data[key].length > 0)
+              newData[key] = data[key][0];
+          });
+          resolve(newData);
         }
-        return "done"
-    })()
-}
-function req_wxpay_qr(sock, data, cb) {
-    util.verify_req(data, () => data.cli_id)
-        .then(decoded => {
-            let reqObj = get_req_obj(sock, data, decoded)
-            reqObj.trade_type = 'NATIVE';
-            return wxpay.unifiedOrder(reqObj)
-        })
-        .then(res => {
-            // console.log(res);
-            data.cli_id = data.cli_id
-            data["pay_status"] = "invalid"
-            data.sock_status = 'valid'
-            data.sock_id = sock.id;
-            data.createdAt = new Date();
-            data.trade_type = '微信正扫';
-            // console.log(data);
-            m_db.collection('pending_order').insert(data)
-            cb(res);
-        })
-        .catch(err => {
-            console.log(err);
-            cb({
-                ret: -1,
-                msg: err
-            })
-        });
-}
-
-//here
-function refund(sock, data, cb) {
-    (async () => {
-        try {
-            let usr = await util.verify_usr(data)
-            let reqObj = {
-                sub_mch_id: data.sub_mch_id,
-                out_trade_no: data.out_trade_no,
-                out_refund_no: data.out_refund_no,
-                total_fee: data.total_fee,
-                refund_fee: data.total_fee
-            }
-            let res = await wxpay.refund(reqObj)
-            if (res.return_code === 'SUCCESS') {
-                if (res.result_code === 'SUCCESS') {
-                    cb({ ret: 0, msg: '退款申请成功' });
-                } else {
-                    throw res.err_code_des
-                }
-            } else {
-                throw res.return_msg
-            }
-        } catch (err) {
-            console.log(err)
-            cb({ ret: -1, msg: err });
-        }
-        return "done"
-    })()
-}
-function reverse(sock, data, cb) {
-    (async () => {
-        try {
-            let usr = await util.verify_usr(data)
-            let reqObj = {
-                sub_mch_id: data.sub_mch_id,
-                out_trade_no: data.out_trade_no
-            }
-            let res = await wxpay.reverse(reqObj)
-            if (res.return_code === 'SUCCESS') {
-                if (res.result_code === 'SUCCESS') {
-                    cb({ ret: 0, msg: '撤销成功' });
-                } else {
-                    throw res.err_code_des
-                }
-            } else {
-                throw res.return_msg
-            }
-        } catch (err) {
-            console.log(err)
-            cb({ ret: -1, msg: err });
-        }
-        return "done"
-    })()
-}
-function order_query(sock, data, cb) {
-    (async () => {
-        try {
-            let usr = await util.verify_usr(data)
-            let reqObj = {
-                sub_mch_id: data.sub_mch_id,
-                out_trade_no: data.out_trade_no
-            }
-            let res = await wxpay.orderQuery(reqObj)
-            if (res.return_code === 'SUCCESS') {
-                if (res.result_code === 'SUCCESS') {
-                    if (res.trade_state === 'SUCCESS') {
-                        cb({ ret: 0, msg: '支付成功' });
-                    } else {
-                        throw res.err_code_des
-                    }
-                } else {
-                    throw res.trade_state_desc
-                }
-            } else {
-                throw res.return_msg
-            }
-        } catch (err) {
-            console.log(err)
-            cb({ ret: -1, msg: err });
-        }
-        return "done"
-    })()
-}
-function dl_wx_bill(sock, data, cb) {
-    let reqObj = {
-        sub_mch_id: data.sub_mch_id,
-        bill_type: 'ALL',
-        bill_date: data.bill_date
-    }
-    const get_bill_csv = async () => {
-        try {
-            let decoded = await util.verify_usr(data)
-            const csv_id = util.hash_str(JSON.stringify(reqObj))
-            let csv = await m_db.collection('temp').findOne({ csv_id })
-            // console.log('find cached csv', csv)
-            if (csv) {
-                const to_url = `/wx_bill?csv_id=${csv._id}`
-                cb({ ret: 0, to_url, data: csv.csv_str });
-            } else {
-                let res = await wxpay.downloadBill(reqObj)
-                if (res.return_code == 'SUCCESS') {
-                    const csv_str = res.data
-                    const csv_buff = Binary(Buffer.from(csv_str))
-                    //sava to temp collection waiting for fetched by client
-                    const new_csv = await m_db.collection('temp').insertOne({ csv_id, csv_str, csv_buff, name: `wxpay_${data.bill_date}` })
-                    const to_url = `/wx_bill?csv_id=${new_csv.insertedId}`
-                    cb({ ret: 0, to_url, data: res.data });
-                } else {
-                    throw res.return_msg
-                }
-            }
-        } catch (err) {
-            // console.log( err )
-            cb({ ret: -1, msg: err });
-        }
-        return "done"
-    }
-    get_bill_csv()
-}
-
-//mdb && winston is global
-function handle_pay_event(app, io) {
-    app.get('/wx_gzh_pay', (req, res) => {
-        const sess = req.session;
-        const openid = req.query.oid;
-        if (!sess.order_data || !openid) {
-            console.log('/wx_gzh_pay invalid entrance')
-            return res.end('invalid entrance');
-        }
-        (async () => {
-            try {
-                let data = sess.order_data
-                let reqObj = get_req_obj(req, data, sess.mch_decoded)
-                reqObj.trade_type = 'JSAPI';
-                reqObj.openid = openid;
-                let wx_res = await wxpay.unifiedOrder(reqObj)
-                if (wx_res.return_code === 'SUCCESS') {
-                    if (wx_res.result_code === 'SUCCESS') {
-                        let prepay = {
-                            appId: wx_res.appid,
-                            timeStamp: (new Date).getTime().toString(),
-                            nonceStr: wx_res.nonce_str,
-                            signType: WXPayConstants.SIGN_TYPE_HMACSHA256,
-                            package: `prepay_id=${wx_res.prepay_id}`
-                        }
-                        prepay.paySign = WXPayUtil.generateSignature(prepay, credential.wx_KEY, WXPayConstants.SIGN_TYPE_HMACSHA256)
-                        data.cli_id = openid
-                        data["pay_status"] = "invalid"
-                        data.sock_status = 'valid'
-                        data.createdAt = new Date();
-                        data.trade_type = '微信公众号';
-                        // console.log(data);
-                        m_db.collection('pending_order').insert(data)
-                        prepay.rurl = sess.rurl
-                        prepay.order_id = data.out_trade_no
-                        res.render('gzh_relay.html', prepay);
-                    } else {
-                        throw wx_res.err_code_des
-                    }
-                } else {
-                    throw wx_res.return_msg
-                }
-            } catch (err) {
-                // console.log( err )
-                const qs = querystring.stringify({ ret: -1, msg: err })
-                res.redirect(`${sess.rurl}?${qs}`);
-            }
-            return "done"
-        })()
+      });
     });
-    app.get('/wx_bill', (req, res) => {
-        const csv_id = req.query.csv_id
-        // console.log('in /wx_bill', req.query)
-        const download_csv = async () => {
-            try {
-                let csv = await m_db.collection('temp').findOne({ _id: new ObjectId(csv_id) })
-                // console.log('find cached csv', csv)
-                if (csv) {
-                    const cached_csv_str = csv.csv_str;
-                    const cached_csv_buff = csv.csv_buff.buffer;
-                    res.header('Content-type', 'text/csv; charset=utf-8');
-                    // res.header('Content-Length', content.length);
-                    res.header('Content-disposition', `attachment; filename=${csv.name}.csv`);
-                    res.write(new Buffer('EFBBBF', 'hex')); // BOM header
-                    //can not use res.send(...)
-                    res.end(cached_csv_buff) //or cached_csv_str
-                } else {
-                    throw 'can not find csv'
-                }
-            } catch (err) {
-                res.end(err)
-            }
-            return "done"
-        }
-        download_csv()
-    })
-    app.post('/wx_notify', (req, res) => {
-        let resp = req.body.xml;
-        // console.log("wx qr pay callback...");
-        // console.log(resp);
-        if (resp.return_code[0] == 'SUCCESS' && resp.result_code[0] == 'SUCCESS') {
-            let order_id = _.isArray(resp.out_trade_no) ? resp.out_trade_no[0] : resp.out_trade_no;
-            util.notify_or_save_pay_result(order_id, resp, io, res)
-        } else {
-            console.log('notify pay failed', resp.result_code[0]);
-            winston.error('notify pay failed', resp.result_code[0]);
-            res.end('success');
-        }
-    });
+  },
 
-    io.on('connection', socket => {
-        socket.on('req_wxpay_qr', (data, cb) => req_wxpay_qr(socket, data, cb));
-        socket.on('wx_auth_pay', (data, cb) => req_micropay(socket, data, cb));
-        socket.on('wx_order_query', (data, cb) => order_query(socket, data, cb));
-        socket.on('dl_wx_bill', (data, cb) => dl_wx_bill(socket, data, cb));
-        socket.on('wx_reverse', (data, cb) => reverse(socket, data, cb));
-        socket.on('wx_refund', (data, cb) => refund(socket, data, cb));
-        socket.on('wx_js_prepay_id', (data, cb) => js_prepay(socket, data, cb));
-        socket.on('fg_wx_js_prepay', (data, cb) => fg_js_prepay(socket, data, cb));
+  /**
+   * object 转换成 XML 字符串
+   *
+   * @param {object} obj
+   * @returns {Promise}
+   */
+  obj2xml(obj) {
+    return new Promise( (resolve, reject)=> {
+      var builder = new xml2js.Builder({cdata: true, rootName:'xml'});
+      try {
+        var xmlStr = builder.buildObject(obj);
+        resolve(xmlStr);
+      } catch (err) {
+        reject(err);
+      }
     });
-}
-module.exports = {
-    handle_pay_event,
-    req_pay_qr
-}
-//post api below
-function req_pay_qr(req, data, cb) {
-    util.verify_req(data)
-        .then(decoded => {
-            let reqObj = get_req_obj(req, data, decoded)
-            reqObj.trade_type = 'NATIVE';
-            return wxpay.unifiedOrder(reqObj)
-        })
-        .then(res => {
-            console.log(res);
-            data.createdAt = new Date();
-            data["pay_status"] = "invalid"
-            data.sock_status = 'valid'
-            data.trade_type = '微信正扫';
-            // console.log(data);
-            m_db.collection('pending_order').insert(data)
-            cb({
-                ret: 0,
-                code_url: res.code_url
-            });
-        })
-        .catch(err => {
-            console.log(err);
-            cb({
-                ret: -1,
-                msg: err
-            })
+  },
+
+  /**
+   * 生成签名
+   *
+   * @param {object} data
+   * @param {string} key API key
+   * @param {string} signType
+   * @returns {string}
+   */
+  generateSignature(data, key, signType) {
+    signType = signType || WXPayConstants.SIGN_TYPE_HMACSHA256;
+    if (signType !== WXPayConstants.SIGN_TYPE_MD5 && signType !== WXPayConstants.SIGN_TYPE_HMACSHA256) {
+      throw new Error("Invalid signType: " + signType);
+    }
+    var combineStr = '';
+    var ks = Object.keys(data).sort();
+    for (var i=0; i<ks.length; ++i) {
+      var k = ks[i];
+      if( k !== WXPayConstants.FIELD_SIGN  && data[k] ) {
+        var v = '' + data[k];
+        if (v.length > 0) {
+          combineStr = combineStr + k + '=' + v + '&';
+        }
+      }
+    }
+    if (combineStr.length == 0) {
+      throw new Error("There is no data to generate signature");
+    }
+    else {
+      combineStr = combineStr + 'key=' + key;
+      if (signType === WXPayConstants.SIGN_TYPE_MD5) {
+        return this.md5(combineStr);
+      }
+      else if (signType === WXPayConstants.SIGN_TYPE_HMACSHA256) {
+        return this.hmacsha256(combineStr, key);
+      }
+      else {
+        throw new Error("Invalid signType: " + signType);
+      }
+    }
+  },
+
+  /**
+   * 验证签名
+   *
+   * @param {object} data
+   * @param {string} key API key
+   * @param {string} signType
+   * @returns {boolean}
+   */
+  isSignatureValid(data, key, signType) {
+    signType = signType || WXPayConstants.SIGN_TYPE_HMACSHA256;
+    if (data === null || typeof data !== 'object') {
+      return false;
+    }
+    else if (!data[WXPayConstants.FIELD_SIGN]) {
+      return false;
+    }
+    else {
+      return data[WXPayConstants.FIELD_SIGN] === this.generateSignature(data, key, signType);
+    }
+  },
+
+  /**
+   * 带有签名的 XML 数据
+   *
+   * @param {object} data
+   * @param {string} key
+   * @param {string} signType
+   * @returns {Promise}
+   */
+  generateSignedXml(data, key, signType) {
+    var clonedDataObj = JSON.parse(JSON.stringify(data));
+    clonedDataObj[WXPayConstants.FIELD_SIGN] = this.generateSignature(data, key, signType);
+    return new Promise( (resolve, reject)=> {
+      WXPayUtil.obj2xml(clonedDataObj)
+      .then( (xmlStr)=> {
+        resolve(xmlStr);
+      }).catch( (err)=> {
+        reject(err);
+      });
+    });
+  },
+
+  /**
+   * 生成随机字符串
+   *
+   * @returns {string}
+   */
+  generateNonceStr() {
+    return uuid.v4().replace(/\-/g, "");
+  },
+
+  /**
+   * 得到 MD5 签名结果
+   *
+   * @param {string} source
+   * @returns {string}
+   */
+  md5(data) {
+    return crypto.createHash('md5').update(data).digest("hex").toUpperCase();
+  },
+
+  /**
+   * 得到 HMAC-SHA256 签名结果
+   *
+   * @param {string} source
+   * @param {string} key
+   * @returns {string}
+   */
+  hmacsha256(source, key) {
+    return crypto.createHmac("sha256", key).update(source, 'utf8').digest("hex").toUpperCase();
+  }
+
+};
+
+/**
+ * WXPay对象
+ *
+ * @param {object} config
+ * @constructor
+ */
+class WXPay {
+  constructor(config) {
+    const options = ['appId', 'mchId', 'key', 'certFileContent', 'caFileContent'];
+    for (let i=0; i<options.length; ++i) {
+      if (!config[options[i]]) {
+        throw new Error('Please check '+options[i] + ' in config');
+      }
+    }
+    this.APPID = config['appId'];
+    this.MCHID = config['mchId'];
+    this.KEY = config['key'];
+    this.CERT_FILE_CONTENT = config['certFileContent'];
+    this.CA_FILE_CONTENT = config['caFileContent'];
+
+    this.TIMEOUT = config['timeout'] || _DEFAULT_TIMEOUT;
+    this.SIGN_TYPE = config['signType'] || WXPayConstants.SIGN_TYPE_HMACSHA256;
+    this.USE_SANDBOX = config['useSandbox'] || false;
+  }
+  /**
+   * 处理 HTTP 请求的返回信息（主要是做签名验证），并将 xml 转换为 object
+   *
+   * @param {string} respXml
+   * @returns {Promise}
+   */
+  processResponseXml(respXml) {
+    const self = this;
+    return new Promise( (resolve, reject)=> {
+      WXPayUtil.xml2obj(respXml).then( (respObj)=> {
+        var return_code = respObj['return_code'];
+        if (return_code) {
+          if (return_code === WXPayConstants.FAIL) {
+            resolve(respObj);
+          }
+          else if (return_code === WXPayConstants.SUCCESS) {
+            var isValid = self.isResponseSignatureValid(respObj);
+            if (isValid) {
+              resolve(respObj);
+            }
+            else {
+              reject(new Error('Invalid sign value in XML: ' + respXml));
+            }
+          }
+          else {
+            reject(new Error('Invalid return_code in XML: ' + respXml));
+          }
+        }
+        else {
+          reject(new Error('no return_code in the response XML: ' + respXml));
+        }
+      }).catch( (err)=> {
+        reject(err);
+      });
+    });
+  }
+  /**
+   * 请求响应中的签名是否合法
+   *
+   * @param {object} respData
+   * @returns {boolean}
+   */
+  isResponseSignatureValid(respData) {
+    return WXPayUtil.isSignatureValid(respData, this.KEY, this.SIGN_TYPE);
+  }
+  /**
+   * 判断支付结果通知中的sign是否有效。必须有sign字段
+   *
+   * @param {object} notifyData
+   * @returns {boolean}
+   */
+  isPayResultNotifySignatureValid(notifyData) {
+    let signType, signTypeInData = notifyData[WXPayConstants.FIELD_SIGN_TYPE];
+    if (!signTypeInData) {
+      signType = this.SIGN_TYPE; //WXPayConstants.SIGN_TYPE_HMACSHA256;
+    } else {
+      signTypeInData = (''+signTypeInData).trim();
+      if (signTypeInData.length == 0) {
+        signType = WXPayConstants.SIGN_TYPE_HMACSHA256;
+      } else if (signTypeInData === WXPayConstants.SIGN_TYPE_MD5) {
+        signType = WXPayConstants.SIGN_TYPE_MD5;
+      } else if (signTypeInData === WXPayConstants.SIGN_TYPE_HMACSHA256) {
+        signType = WXPayConstants.SIGN_TYPE_HMACSHA256;
+      } else {
+        throw new Error("Invalid sign_type: "+signTypeInData+" in pay result notify");
+      }
+    }
+    return WXPayUtil.isSignatureValid(notifyData, this.KEY, signType);
+  }
+  /**
+   * 向数据中添加appid、mch_id、nonce_str、sign_type、sign
+   *
+   * @param {object} reqData
+   * @returns {object}
+   */
+  fillRequestData(reqData) {
+    const clonedData = JSON.parse(JSON.stringify(reqData));
+    clonedData['appid'] = this.APPID;
+    clonedData['mch_id'] = this.MCHID;
+    clonedData['nonce_str'] = WXPayUtil.generateNonceStr();
+    clonedData[WXPayConstants.FIELD_SIGN_TYPE] = this.SIGN_TYPE;
+    clonedData[WXPayConstants.FIELD_SIGN] = WXPayUtil.generateSignature(clonedData, this.KEY, this.SIGN_TYPE);
+    return clonedData;
+  }
+  /**
+   * HTTP(S) 请求，无证书
+   *
+   * @param {string} url
+   * @param {object} reqData
+   * @param {int} timeout
+   * @returns {Promise}
+   */
+  requestWithoutCert(url, reqData, timeout) {
+    var self = this;
+    return new Promise((resolve, reject)=> {
+      var options = {
+        url: url,
+        timeout: timeout || self.TIMEOUT
+      };
+      WXPayUtil.obj2xml(reqData).then( (reqXml)=> {
+        // console.log('reqXml', reqXml);
+        options['body'] = reqXml;
+        request.post(options, (error, response, body)=> {
+          if(error){
+            reject(error);
+          }else{
+            // console.log('resp: ', body);
+            resolve(body);
+          }
         });
+      }).catch( (err)=> {
+        reject(err);
+      });
+    });
+  }
+  /**
+   * HTTP(S)请求，附带证书，适合申请退款等接口
+   *
+   * @param {string} url
+   * @param {object} reqData
+   * @param {int} timeout
+   * @returns {Promise}
+   */
+  requestWithCert(url, reqData, timeout) {
+    var self = this;
+    return new Promise((resolve, reject)=> {
+      var options = {
+        url: url,
+        timeout: timeout || self.TIMEOUT,
+        agentOptions: {
+          rejectUnauthorized: false,
+          ca: self.CA_FILE_CONTENT,
+          pfx: self.CERT_FILE_CONTENT,
+          passphrase: self.MCHID
+        }
+      };
+      WXPayUtil.obj2xml(reqData).then( (reqXml)=> {
+        options['body'] = reqXml;
+        request.post(options, (error, response, body)=> {
+          if(error){
+            reject(error);
+          }else{
+            resolve(body);
+          }
+        });
+      }).catch( (err)=> {
+        reject(err);
+      });
+    });
+  }
+  /**
+   * 提交刷卡支付
+   *
+   * @param {object} reqData
+   * @param {int} timeout
+   * @returns {Promise}
+   */
+  microPay(reqData, timeout) {
+    var self = this;
+    var url = WXPayConstants.MICROPAY_URL;
+    if (self.USE_SANDBOX) {
+      url = WXPayConstants.SANDBOX_MICROPAY_URL;
+    }
+    return new Promise( (resolve, reject)=> {
+      self.requestWithoutCert(url, self.fillRequestData(reqData), timeout).then( (respXml)=> {
+        self.processResponseXml(respXml).then( (respObj)=> {
+          resolve(respObj);
+        }).catch( (err)=> {
+          reject(err);
+        });
+      }).catch( (err)=> {
+        reject(err);
+      });
+    });
+  }
+  /**
+   * 统一下单
+   *
+   * @param {object} reqData
+   * @param {int} timeout
+   * @returns {Promise}
+   */
+  unifiedOrder(reqData, timeout) {
+    let url = WXPayConstants.UNIFIEDORDER_URL;
+    if (this.USE_SANDBOX) {
+      url = WXPayConstants.SANDBOX_UNIFIEDORDER_URL;
+    }
+    return new Promise( (resolve, reject)=> {
+      this.requestWithoutCert(url, this.fillRequestData(reqData), timeout).then( (respXml)=> {
+        this.processResponseXml(respXml).then( (respObj)=> {
+          resolve(respObj);
+        }).catch((err)=> {
+          reject(err);
+        });
+      }).catch( (err)=> {
+        reject(err);
+      });
+    });
+  }
+  /**
+   * 查询订单
+   *
+   * @param {object} reqData
+   * @param {int} timeout
+   * @returns {Promise}
+   */
+  orderQuery(reqData, timeout) {
+    var self = this;
+    var url = WXPayConstants.ORDERQUERY_URL;
+    if (self.USE_SANDBOX) {
+      url = WXPayConstants.SANDBOX_ORDERQUERY_URL;
+    }
+    return new Promise( (resolve, reject)=> {
+      self.requestWithoutCert(url, self.fillRequestData(reqData), timeout).then( (respXml)=> {
+        self.processResponseXml(respXml).then( (respObj)=> {
+          resolve(respObj);
+        }).catch( (err)=> {
+          reject(err);
+        });
+      }).catch( (err)=> {
+        reject(err);
+      });
+    });
+  }
+  /**
+   * 撤销订单, 用于刷卡支付
+   *
+   * @param {object} reqData
+   * @param {int} timeout
+   * @returns {Promise}
+   */
+  reverse(reqData, timeout) {
+    var self = this;
+    var url = WXPayConstants.REVERSE_URL;
+    if (self.USE_SANDBOX) {
+      url = WXPayConstants.SANDBOX_REVERSE_URL;
+    }
+    return new Promise( (resolve, reject)=> {
+      self.requestWithCert(url, self.fillRequestData(reqData), timeout).then( (respXml)=> {
+        self.processResponseXml(respXml).then( (respObj)=> {
+          resolve(respObj);
+        }).catch( (err)=> {
+          reject(err);
+        });
+      }).catch( (err)=> {
+        reject(err);
+      });
+    });
+  }
+  /**
+   * 关闭订单
+   *
+   * @param {object} reqData
+   * @param {int} timeout
+   * @returns {Promise}
+   */
+  closeOrder(reqData, timeout) {
+    var self = this;
+    var url = WXPayConstants.CLOSEORDER_URL;
+    if (self.USE_SANDBOX) {
+      url = WXPayConstants.SANDBOX_CLOSEORDER_URL;
+    }
+    return new Promise(function (resolve, reject) {
+      self.requestWithoutCert(url, self.fillRequestData(reqData), timeout).then(function (respXml) {
+        self.processResponseXml(respXml).then(function (respObj) {
+          resolve(respObj);
+        }).catch(function (err) {
+          reject(err);
+        });
+      }).catch(function (err) {
+        reject(err);
+      });
+    });
+  }
+  /**
+   * 申请退款
+   *
+   * @param {object} reqData
+   * @param {int} timeout
+   * @returns {Promise}
+   */
+  refund(reqData, timeout) {
+    var self = this;
+    var url = WXPayConstants.REFUND_URL;
+    if (self.USE_SANDBOX) {
+      url = WXPayConstants.SANDBOX_REFUND_URL;
+    }
+    return new Promise(function (resolve, reject) {
+      self.requestWithCert(url, self.fillRequestData(reqData), timeout).then(function (respXml) {
+        self.processResponseXml(respXml).then(function (respObj) {
+          resolve(respObj);
+        }).catch(function (err) {
+          reject(err);
+        });
+      }).catch(function (err) {
+        reject(err);
+      });
+    });
+  }
+  /**
+   * 退款查询
+   *
+   * @param {object} reqData
+   * @param {int} timeout
+   * @returns {Promise}
+   */
+  refundQuery(reqData, timeout) {
+    var self = this;
+    var url = WXPayConstants.REFUNDQUERY_URL;
+    if (self.USE_SANDBOX) {
+      url = WXPayConstants.SANDBOX_REFUNDQUERY_URL;
+    }
+    return new Promise(function (resolve, reject) {
+      self.requestWithoutCert(url, self.fillRequestData(reqData), timeout).then(function (respXml) {
+        self.processResponseXml(respXml).then(function (respObj) {
+          resolve(respObj);
+        }).catch(function (err) {
+          reject(err);
+        });
+      }).catch(function (err) {
+        reject(err);
+      });
+    });
+  }
+  /**
+   * 下载对账单
+   *
+   * @param {object} reqData
+   * @param {int} timeout
+   * @returns {Promise}
+   */
+  downloadBill(reqData, timeout) {
+    var self = this;
+    var url = WXPayConstants.DOWNLOADBILL_URL;
+    if (self.USE_SANDBOX) {
+      url = WXPayConstants.SANDBOX_DOWNLOADBILL_URL;
+    }
+    return new Promise(function (resolve, reject) {
+      self.requestWithoutCert(url, self.fillRequestData(reqData), timeout).then(function (respStr) {
+        respStr = respStr.trim();
+        if (respStr.startsWith('<')) {  // XML格式，下载出错
+          self.processResponseXml(respStr).then(function (respObj) {
+            resolve(respObj);
+          }).catch(function (err) {
+            reject(err);
+          });
+        }
+        else {   // 下载到数据了
+          resolve({return_code: 'SUCCESS',
+            return_msg: '',
+            data: respStr
+          })
+        }
+      }).catch(function (err) {
+        reject(err);
+      });
+    });
+  }
+  /**
+   * 交易保障
+   *
+   * @param {object} reqData
+   * @param {int} timeout
+   * @returns {Promise}
+   */
+  report(reqData, timeout) {
+    var self = this;
+    var url = WXPayConstants.REPORT_URL;
+    if (self.USE_SANDBOX) {
+      url = WXPayConstants.SANDBOX_REPORT_URL;
+    }
+    return new Promise(function (resolve, reject) {
+      self.requestWithoutCert(url, self.fillRequestData(reqData), timeout).then(function (respXml) {
+        WXPayUtil.xml2obj(respXml).then(function (respObj) {
+          resolve(respObj);
+        }).catch(function (err) {
+          reject(err);
+        });
+      }).catch(function (err) {
+        reject(err);
+      });
+    });
+  }
+  /**
+   * 转换短链接
+   *
+   * @param {object} reqData
+   * @param {int} timeout
+   * @returns {Promise}
+   */
+  shortUrl(reqData, timeout) {
+    var self = this;
+    var url = WXPayConstants.SHORTURL_URL;
+    if (self.USE_SANDBOX) {
+      url = WXPayConstants.SANDBOX_SHORTURL_URL;
+    }
+    return new Promise(function (resolve, reject) {
+      self.requestWithoutCert(url, self.fillRequestData(reqData), timeout).then(function (respXml) {
+        self.processResponseXml(respXml).then(function (respObj) {
+          resolve(respObj);
+        }).catch(function (err) {
+          reject(err);
+        });
+      }).catch(function (err) {
+        reject(err);
+      });
+    });
+  }
+  /**
+   * 授权码查询 OPENID 接口
+   *
+   * @param {object} reqData
+   * @param {int} timeout
+   * @returns {Promise}
+   */
+  authCodeToOpenid(reqData, timeout) {
+    var self = this;
+    var url = WXPayConstants.AUTHCODETOOPENID_URL;
+    if (self.USE_SANDBOX) {
+      url = WXPayConstants.SANDBOX_AUTHCODETOOPENID_URL;
+    }
+    return new Promise(function (resolve, reject) {
+      self.requestWithoutCert(url, self.fillRequestData(reqData), timeout).then(function (respXml) {
+        self.processResponseXml(respXml).then(function (respObj) {
+          resolve(respObj);
+        }).catch(function (err) {
+          reject(err);
+        });
+      }).catch(function (err) {
+        reject(err);
+      });
+    });
+  }
+  /**
+   * 新增个人收款用户
+   *
+   * @param {object} reqData
+   * @param {int} timeout
+   * @returns {Promise}
+   */
+  addSeller(reqData, timeout) {
+    let url = WXPayConstants.ADDSELLER_URL;
+    if (this.USE_SANDBOX) {
+      url = WXPayConstants.SANDBOX_ADDSELLER_URL;
+    }
+    return new Promise( (resolve, reject)=> {
+      const clonedData = JSON.parse(JSON.stringify(reqData));
+      clonedData['appid'] = this.APPID;
+      clonedData['mch_id'] = this.MCHID;
+      clonedData[WXPayConstants.FIELD_SIGN_TYPE] = this.SIGN_TYPE;
+      clonedData[WXPayConstants.FIELD_SIGN] = WXPayUtil.generateSignature(clonedData, this.KEY, this.SIGN_TYPE);
+      // return xml [root] not [xml]
+      this.requestWithCert(url, clonedData, timeout).then( (respXml)=> {
+        this.processResponseXml(respXml).then( (respObj)=> {
+          resolve(respObj);
+        }).catch( (err)=> {
+          reject(err);
+        });
+      }).catch( (err)=> {
+        reject(err);
+      });
+    });
+  }
 }
+
+module.exports = WXPay;
