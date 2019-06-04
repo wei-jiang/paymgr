@@ -1,0 +1,68 @@
+group 'piaoyun' // group id
+version '1.0'
+
+buildscript {
+    repositories {
+        jcenter()
+        mavenCentral()
+    }
+    dependencies {
+        classpath 'com.github.jengelman.gradle.plugins:shadow:4.0.2'
+    }
+}
+// apply plugin: 'java'
+
+apply plugin: 'com.github.johnrengelman.shadow'
+apply plugin: 'application'
+// sourceCompatibility cannot be higher than targetCompatibility
+// You can implementation Java 11 bytecode from Java 8 source code, but not the other way round.
+sourceCompatibility = 11
+targetCompatibility = 11
+shadowJar {
+   baseName = 'paymgr'
+   classifier = null
+   version = 1.0
+}
+mainClassName = "py.Main"
+defaultTasks 'run'
+
+task node(type: Exec) {
+  executable "bash"
+  args "-c", "cd nodejs && pkg . -t node10-linux -o ../dist-node/app"
+}
+
+task spa(type: Exec) {
+  executable "sh"
+  args "-c", "cd spa && npm run build"
+}
+task tspa(type: Exec) {
+  executable "sh"
+  args "-c", "export LOCAL_TEST=here && cd spa && npm run build"
+}
+task copyJar(type: Copy) {
+    from 'build/libs/paymgr-1.0.jar'
+    into 'dist'
+}
+build.dependsOn copyJar
+repositories {
+    mavenCentral()
+    jcenter()
+}
+
+dependencies {
+  implementation 'com.auth0:java-jwt:3.8.0'
+  implementation 'com.google.code.gson:gson:2.8.5'
+  implementation 'org.apache.commons:commons-lang3:3.9'
+  implementation 'com.google.zxing:core:3.3.3'
+  implementation 'com.google.zxing:javase:3.3.3'
+  implementation 'org.freemarker:freemarker:2.3.28'
+  implementation 'com.sun.mail:javax.mail:1.6.2'
+  implementation 'org.mongodb:mongodb-driver-sync:3.10.1'
+  implementation 'commons-io:commons-io:2.6'
+  implementation 'org.apache.httpcomponents:httpmime:4.5.8'
+  implementation 'org.apache.httpcomponents:httpclient:4.5.3'
+  implementation 'org.slf4j:slf4j-api:1.7.26'
+  implementation 'org.slf4j:slf4j-simple:1.7.26'
+  implementation 'io.javalin:javalin:2.8.0'
+  testImplementation group: 'junit', name: 'junit', version: '4.12'
+}

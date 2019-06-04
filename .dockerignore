@@ -1,0 +1,12 @@
+node_modules
+npm-debug.log
+Dockerfile
+.dockerignore
+*.tar.gz
+mobile
+rules
+spa
+build
+bin
+bak
+tw.js
