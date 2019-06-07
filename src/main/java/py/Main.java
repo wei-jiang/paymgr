@@ -26,7 +26,6 @@ import org.slf4j.LoggerFactory;
 import static py.Util.jsonToMap;
 public class Main {
     private static final Logger logger = LoggerFactory.getLogger(Main.class);
-    
 
     public static void main(String[] args) throws Exception {
         // Test.test();
@@ -58,6 +57,7 @@ public class Main {
         
         new WxRest(app, wxpay, mongo);
         new WxWs(app, wxpay, mongo);
+        new Job(wxpay, mongo);
         app.get("/qr", ctx -> {           
             // QrCode.genQr(content)
             ctx.render("qr_code.ftl", Map.of());
@@ -75,6 +75,31 @@ public class Main {
                 data.put("msg", e.getMessage());
             }            
             ctx.json(data);
+        });
+        app.post("/send_problem", ctx -> {           
+            Map<String, String> data = jsonToMap(ctx);
+            try {
+                var message = data.get("message");
+                var contact_email = data.get("contact_email");
+                if(message == null || contact_email == null) throw new Exception("内容不全");
+                Mail.sendMail("from: "+contact_email, message, Secret.supportEmail);
+                data.put("ret", "0");
+            } catch (Exception e) {
+                data.put("ret", "-1");
+                data.put("msg", e.getMessage());
+            }            
+            ctx.json(data);
+        });
+        app.get("/session_test", ctx -> {
+            String st = ctx.sessionAttribute("session_test");
+            if(st == null) {
+                st = "0";
+            } else {
+                int i = Integer.parseInt(st) + 1;
+                st = String.valueOf(i);
+            }
+            ctx.sessionAttribute("session_test", st);
+            ctx.result(st);
         });
         app.get("/test", ctx -> {
             // String cli_ip = ctx.header("x-forwarded-for");

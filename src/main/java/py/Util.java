@@ -11,6 +11,7 @@ import java.util.Date;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.lang.reflect.Type;
 import java.util.stream.Collectors;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
@@ -22,6 +23,8 @@ import com.auth0.jwt.JWTVerifier;
 import com.auth0.jwt.algorithms.Algorithm;
 import com.auth0.jwt.interfaces.Claim;
 import com.auth0.jwt.interfaces.DecodedJWT;
+import com.google.gson.Gson;
+import com.google.gson.reflect.TypeToken;
 
 import org.apache.commons.codec.digest.DigestUtils;
 import org.apache.http.client.utils.URLEncodedUtils;
@@ -40,6 +43,7 @@ import org.eclipse.jetty.server.session.SessionHandler;
 
 public class Util {
     public static Configuration freemarker = new Configuration(Configuration.VERSION_2_3_28);
+    static Type MapType = new TypeToken<Map<String, String>>() {}.getType();
     static void initFreeMarker(){
         freemarker.setClassForTemplateLoading(Util.class, "/views");
         freemarker.setDefaultEncoding("UTF-8");
@@ -62,7 +66,9 @@ public class Util {
 
     public static String signSubMchId(String sub_mch_id) throws Exception {
         Algorithm algorithm = Algorithm.HMAC256(Secret.tokenPass);
-        var jwt = JWT.create().withClaim("sub_mch_id", sub_mch_id).withIssuer("piaoyun");
+        var jwt = JWT.create().withClaim("sub_mch_id", sub_mch_id)
+        // .withIssuer("piaoyun")
+        ;
         String token = jwt.sign(algorithm);
         return token;
     }
@@ -70,7 +76,8 @@ public class Util {
     public static String signToken(Map<String, String> data) throws Exception {
         Algorithm algorithm = Algorithm.HMAC256(Secret.tokenPass);
         var jwt = JWT.create().withExpiresAt(new Date(System.currentTimeMillis() + (60 * 60 * 1000))) // 60 minutes
-                .withIssuer("piaoyun");
+                // .withIssuer("piaoyun")
+                ;
         for (Map.Entry<String, String> entry : data.entrySet()) {
             jwt.withClaim(entry.getKey(), entry.getValue());
         }
@@ -79,7 +86,9 @@ public class Util {
     }
 
     public static Map<String, String> verifyToken(String token) throws Exception {
-        JWTVerifier verifier = JWT.require(Algorithm.HMAC256(Secret.tokenPass)).withIssuer("piaoyun").build();
+        JWTVerifier verifier = JWT.require(Algorithm.HMAC256(Secret.tokenPass))
+        // .withIssuer("piaoyun")
+        .build();
         DecodedJWT jwt = verifier.verify(token);
         var claims = jwt.getClaims();
         Map<String, String> data = new HashMap<String, String>();
@@ -127,6 +136,10 @@ public class Util {
         data.remove("token");
         return sub_mch_id;
     }
+
+    public static Map<String, String> jsonStrToMap(String json) {
+        return new Gson().fromJson(json, MapType);
+    }
     public static Map<String, String> jsonToMap(Context ctx) {
         // Type type = new TypeToken<Map<String, String>>() {}.getType();
         @SuppressWarnings("unchecked")
@@ -140,6 +153,9 @@ public class Util {
 
         var qs = URLEncodedUtils.format(nameValuePairs, Charset.forName("UTF-8"));
         return qs;
+    }
+    public static String getNowStr() {
+        return LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss"));
     }
     public static String getOutTradeNo() {
         String now = LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyyMMddHHmmssSSS"));
@@ -176,11 +192,16 @@ public class Util {
     public static String maskEmail(String email) {
         return  email.replaceAll("(^[^@]{3}|(?!^)\\G)[^@]", "$1*");
     }
-    // mask 75% of the string
+    // mask 75% of left of the string
     public static String maskTopAlnum(String input) {
         int length = input.length() - input.length()/4;
         String s = input.substring(0, length);
         String res = s.replaceAll("[A-Za-z0-9]", "*") + input.substring(length);
         return res;
+    }
+    public static String maskCenter(String str, int left_count, int right_count) {
+        var star = "*";
+        var maskCount = str.length() - left_count - right_count;
+        return  str.substring(0, left_count) + star.repeat(maskCount) + str.substring(str.length() - right_count);
     }
 }

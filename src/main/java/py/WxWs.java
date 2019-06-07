@@ -49,9 +49,8 @@ public class WxWs {
                 cli_offline(session);
             });
             ws.onMessage((session, message) -> {
-                Map<String, String> data;
                 try {
-                    data = new Gson().fromJson(message, MapType);
+                    Map<String, String> data = Util.jsonStrToMap(message);
                     if (data.get("cmd") == null)
                         throw new Exception("invalid request");
                     handle_msg(data, session);
@@ -75,6 +74,13 @@ public class WxWs {
             paids.forEach(o -> {
                 if (notify_pay_success(o.get("cli_id").toString(), o)) {
                     mongo.delPoByOid(o.get("out_trade_no").toString());
+                }
+            });
+            // noty msg
+            List<Document> notys = mongo.findNotyByField("cli_id", cli_id);
+            notys.forEach(doc -> {
+                if (notify_msg(cli_id, doc)) {
+                    mongo.delNotyBy_id(doc.get("_id").toString());
                 }
             });
         }
@@ -177,29 +183,37 @@ public class WxWs {
         data.put("code_url", res.get("code_url"));
         sock.send(toJson(data));
     }
-
-    public static Boolean notify_pay_success(String cli_id, Document o) {
+    public static Boolean notify_client(String cli_id, Document doc) {
         var t_sock = id2sock.get(cli_id);
         if (t_sock != null) {
-            o.put("cmd", "pay_success");
-            var json = o.toJson();
+            var json = doc.toJson();
             logger.info(String.format("websocket notify %s: %s", cli_id, json));
             t_sock.send(json);
             return true;
         }
         return false;
     }
-
+    public static Boolean notify_pay_success(String cli_id, Document o) {
+        Document doc = Document.parse(o.toJson());
+        doc.put("cmd", "pay_success");
+        return notify_client(cli_id, doc);
+    }
+    public static Boolean notify_msg(String cli_id, Document o) {
+        Document doc = Document.parse(o.toJson());
+        doc.put("cmd", "noty_msg");
+        return notify_client(cli_id, doc);
+    }
     private void cli_online(String id, WsSession session) {
         if (id2sock.get(id) != null) {
             WsSession old_sock = id2sock.get(id);
             old_sock.close();
             sock2id.remove(old_sock);
+            logger.info("same client [{}] online, dump old one", id);
         }
         id2sock.put(id, session);
         sock2id.put(session, id);
         session.setIdleTimeout(3600 * 1000); // ms
-        logger.info(String.format("cli_online  id2sock.size=%d && sock2id.size=%d", id2sock.size(), sock2id.size()));
+        logger.info(String.format("cli_online [%s] id2sock.size=%d && sock2id.size=%d", id, id2sock.size(), sock2id.size()));
     }
 
     String toJson(Object o) {
@@ -212,10 +226,11 @@ public class WxWs {
             // logger.info("$cli_id offline")
             id2sock.remove(cli_id);
             sock2id.remove(session);
+            logger.info(String.format("cli_offline [%s] id2sock.size=%d && sock2id.size=%d", cli_id, id2sock.size(), sock2id.size()));
         } else {
-
+            logger.info(String.format("cli_offline not found session id2sock.size=%d && sock2id.size=%d", id2sock.size(), sock2id.size()));
         }
-        logger.info(String.format("cli_offline  id2sock.size=%d && sock2id.size=%d", id2sock.size(), sock2id.size()));
+        
     }
 
     // Sends a message from one user to all users, along with a list of current

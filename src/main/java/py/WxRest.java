@@ -99,21 +99,22 @@ public class WxRest {
                         var payload = attach.split(",");
                         var cmd = payload[0];
                         var data = payload.length >= 2 ? payload[1] : null;
-                        doc = evtSys.handle(cmd, data, doc);
-                    }
-                    if(cli_id == null){
+                        evtSys.handle(cmd, data, doc);
                         mongo.delPoByOid(out_trade_no);
                     } else {
-                        var cid = cli_id.toString();
-                        if (WxWs.notify_pay_success(cid, doc)) {
-                            logger.info("notify client successful, cli_id={}; out_trade_no={}", cid, out_trade_no);
+                        if(cli_id == null){
                             mongo.delPoByOid(out_trade_no);
                         } else {
-                            mongo.updatePoStatus(out_trade_no, "paid");
-                            logger.info("client offlined, notification to be continued");
+                            var cid = cli_id.toString();
+                            if (WxWs.notify_pay_success(cid, doc)) {
+                                logger.info("notify client successful, cli_id={}; out_trade_no={}", cid, out_trade_no);
+                                mongo.delPoByOid(out_trade_no);
+                            } else {
+                                mongo.updatePoStatus(out_trade_no, "paid");
+                                logger.info("client offlined, notification to be continued");
+                            }
                         }
-                    }
-                    
+                    }    
                 }
             } else {
                 // 签名错误，如果数据里没有sign字段，也认为是签名错误
@@ -235,6 +236,7 @@ public class WxRest {
                     // ,"token", token
                     ));
                     setMchField(_id, Map.of("applyment_id", res.get("applyment_id")));
+                    // wait for background thread to check result
                 }
 
             } catch (Exception e) {
@@ -576,15 +578,18 @@ public class WxRest {
     }
 
     Map<String, String> putMchInfo(Map<String, String> data, Document doc){
+        // 身份证 	显示前 1 位 + *(实际位数) + 后 1 位，如： 3****************3
+        // 银行卡 	显示前 6 位 + *(实际位数) + 后 4 位，如：622575******1496
+        // 手机号 	显示前 3 位 + **** + 后 4 位，如：137****9050
         data.put("account_bank", doc.get("account_bank").toString());
         data.put("account_name", Util.maskBottomPart(doc.get("account_name").toString(), 1));
-        data.put("account_number", Util.maskTopAlnum(doc.get("account_number").toString()));
+        data.put("account_number", Util.maskCenter(doc.get("account_number").toString(), 6, 4) );
         data.put("contact_email", Util.maskEmail(doc.get("contact_email").toString()));
-        data.put("contact_phone", Util.maskBottomPart(doc.get("contact_phone").toString(), 4));
-        data.put("id_card_number", Util.maskTopPart(doc.get("id_card_number").toString(), 4));
+        data.put("contact_phone", Util.maskCenter(doc.get("contact_phone").toString(), 3, 4));
+        data.put("id_card_number", Util.maskCenter(doc.get("id_card_number").toString(), 1, 1));
         data.put("merchant_shortname", doc.get("merchant_shortname").toString());
         data.put("product_desc", doc.get("product_desc").toString());
-        data.put("service_phone", Util.maskTopPart(doc.get("service_phone").toString(), 4));
+        data.put("service_phone", Util.maskCenter(doc.get("service_phone").toString(), 3, 4));
         data.put("ret", "0");
         return data;
     }

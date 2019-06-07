@@ -35,7 +35,7 @@ import org.slf4j.LoggerFactory;
 
 public class Mongo {
     private static final Logger logger = LoggerFactory.getLogger(Mongo.class);
-    private MongoCollection<Document> mch_col, pending_col, order_col, media_col, veri_col;
+    private MongoCollection<Document> mch_col, pending_col, order_col, media_col, veri_col, noty_col;
 
     public Mongo() {
         MongoClient mongoClient = MongoClients.create(Secret.db_url);
@@ -45,8 +45,10 @@ public class Mongo {
         order_col = database.getCollection("order");
         media_col = database.getCollection("media");
         veri_col = database.getCollection("verification");
+        noty_col = database.getCollection("noty");
         pending_col.createIndex(Indexes.ascending("createdAt"), new IndexOptions().expireAfter(30L, TimeUnit.MINUTES));
         veri_col.createIndex(Indexes.ascending("createdAt"), new IndexOptions().expireAfter(5L, TimeUnit.MINUTES));
+        noty_col.createIndex(Indexes.ascending("createdAt"), new IndexOptions().expireAfter(7L, TimeUnit.DAYS));
         logger.info("连接mongodb成功");
     }
 
@@ -114,6 +116,29 @@ public class Mongo {
     //     logger.info(myDoc.toJson());
     //     return myDoc.toJson();
     // }
+    // noty begin
+    DeleteResult delNotyBy_id(String _id){
+        return noty_col.deleteOne( eq("_id", new ObjectId(_id)) );
+    }
+    public List<Document> findNotyByField(String fieldName, String fieldValue){
+        List<Document> notys = new ArrayList<>();
+        MongoCursor<Document> cursor = noty_col.find( eq(fieldName, fieldValue) ).iterator();
+        try {
+            while (cursor.hasNext()) {
+                notys.add( cursor.next() );
+            }
+        } finally {
+            cursor.close();
+        }
+        return notys;
+    }
+    public Document insertNotyMsg(Document doc){
+        // content, dt, op, payload
+        doc.append("createdAt", new Date());
+        noty_col.insertOne(doc);
+        return doc;
+    }
+    // noty end
     public void insertVeriCode(String email, String code){
         Document doc_to_be_find = new Document("email", email);
         Document doc = new Document("email", email).append("code", code).append("createdAt", new Date());
@@ -130,6 +155,19 @@ public class Mongo {
     public Document findMchBy_id(String _id){
         Document doc = mch_col.find(eq("_id", new ObjectId(_id))).first();
         return doc;
+    }
+    public List<Document> findMchsByStatus(String status){
+        // unpaid -> applying -> to_be_signed -> paid
+        List<Document> mchs = new ArrayList<>();
+        MongoCursor<Document> cursor = mch_col.find( eq("status", status) ).iterator();
+        try {
+            while (cursor.hasNext()) {
+                mchs.add( cursor.next() );
+            }
+        } finally {
+            cursor.close();
+        }
+        return mchs;
     }
     public Document findMchByField(String fieldName, String fieldValue){
         Document doc = mch_col.find(eq(fieldName, fieldValue)).first();

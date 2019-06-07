@@ -226,9 +226,6 @@ public class WXMisc {
         String url = WXPayConstants.QueryMICRO_URL_SUFFIX;
         String respXml = wxpay.requestWithCert(url, reqData);
         Map<String, String> resData = wxpay.processResponseXml(respXml);
-        logger.info(resData.get("sign_url"));
-        String res_json = new Gson().toJson(resData);
-        logger.info(res_json);
         return resData;
     }
     public Map<String, String> queryMicroByBusiCode(String business_code) throws Exception {

@@ -30,7 +30,7 @@ public class QrCode {
     private static final String LOGO = "/logo-32x32.png";
 
     public static String genQr(String content) throws Exception {
-        return genQr(content, 300, 300);
+        return genQr(content, 250, 250);
     }
     public static String genQr(String content, int width, int height) throws Exception {
         // Create new configuration that specifies the error correction
