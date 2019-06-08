@@ -136,7 +136,9 @@ public class Util {
         data.remove("token");
         return sub_mch_id;
     }
-
+    public static String toJson(Object o) {
+        return new Gson().toJson(o);
+    }
     public static Map<String, String> jsonStrToMap(String json) {
         return new Gson().fromJson(json, MapType);
     }

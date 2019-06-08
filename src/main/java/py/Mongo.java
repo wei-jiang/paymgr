@@ -157,7 +157,7 @@ public class Mongo {
         return doc;
     }
     public List<Document> findMchsByStatus(String status){
-        // unpaid -> applying -> to_be_signed -> paid
+        // draft -> AUDITING -> TO_BE_SIGNED -> FINISH
         List<Document> mchs = new ArrayList<>();
         MongoCursor<Document> cursor = mch_col.find( eq("status", status) ).iterator();
         try {

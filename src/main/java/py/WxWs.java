@@ -26,6 +26,8 @@ import org.eclipse.jetty.websocket.api.UpgradeRequest;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import static py.Util.toJson;
+
 public class WxWs {
     private static final Logger logger = LoggerFactory.getLogger(WxWs.class);
     Javalin app;
@@ -86,6 +88,13 @@ public class WxWs {
         }
             break;
         case "req_reg_fee_wx_qr": {
+            // client side:
+            // const data = {
+            //     cmd: "req_reg_fee_wx_qr",
+            //     _id: resp._id,
+            //     cli_id
+            //   };
+            //   ws.send(data);
             var reg_fee = new HashMap<String, String>();
             reg_fee.put("cmd", data.get("cmd"));
             reg_fee.put("cli_id", data.get("cli_id"));
@@ -216,9 +225,7 @@ public class WxWs {
         logger.info(String.format("cli_online [%s] id2sock.size=%d && sock2id.size=%d", id, id2sock.size(), sock2id.size()));
     }
 
-    String toJson(Object o) {
-        return new Gson().toJson(o);
-    }
+    
 
     private static void cli_offline(WsSession session) {
         if (sock2id.get(session) != null) {

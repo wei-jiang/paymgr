@@ -210,6 +210,18 @@ public class WxRest {
                 ctx.json(resData);
             }
         });
+        app.post("/clear_session", ctx -> {
+            var data = jsonToMap(ctx);            
+            try {
+                var sub_mch_id = Util.getSubMchId(data);
+                ctx.sessionAttribute("_id", null);
+                data.put("ret", "0");
+            } catch (Exception e) {
+                data.put("ret", "-1");
+                data.put("msg", e.getMessage());
+            }
+            ctx.json(data);
+        });
         app.post("/reg_micro_mch", ctx -> {
             String _id = ctx.sessionAttribute("_id");
             if (_id == null || _id.isEmpty()) {
@@ -225,20 +237,14 @@ public class WxRest {
             data.put("indoor_pic", doc.get("store_indoor_media_id").toString());
             try {
                 Map<String, String> res = wxpay.regMicro(data);
-                if (!(res.get("return_code").equals("SUCCESS")) && res.get("result_code").equals("SUCCESS")) {
-                    // throw new Exception(res.get("err_code_des") == null ? res.get("return_msg") :
-                    // res.get("err_code_des"));
-                    ctx.json(Map.of("ret", -1, "msg",
-                            res.get("err_code_des") == null ? res.get("return_msg") : res.get("err_code_des")));
-                } else {
-                    // var token = Util.signToken(Map.of("sub_mch_id", Secret.sub_mch_id));
-                    ctx.json(Map.of("ret", 0, "applyment_id", res.get("applyment_id"), "_id", _id
-                    // ,"token", token
-                    ));
-                    setMchField(_id, Map.of("applyment_id", res.get("applyment_id")));
-                    // wait for background thread to check result
-                }
-
+                Util.checkWxRet(res);
+                setMchField(_id, Map.of(
+                    "applyment_id", res.get("applyment_id"),
+                    "status", "AUDITING"
+                    )
+                );
+                // and wait for background thread to check result
+                ctx.json(Map.of("ret", 0));    
             } catch (Exception e) {
                 logger.info(e.getMessage());
 
@@ -673,7 +679,7 @@ public class WxRest {
         if (_id == null || _id.isEmpty()) {
             fields.put("create_time",
                     LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss.SSS")));
-            fields.put("status", "unpaid");
+            fields.put("status", "draft");
             return this.mongo.insertMch(fields);
         } else {
             Document doc = this.mongo.updateMch(_id, fields);

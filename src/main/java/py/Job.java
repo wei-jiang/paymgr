@@ -50,51 +50,63 @@ public class Job {
     }
 
     public void checkApplyResult() {
-        // logger.info("period job ...");
-        var mchs = mongo.findMchsByStatus("applying");
+        // logger.info("checkApplyResult period job ...");
+        var mchs = mongo.findMchsByStatus("AUDITING");
         mchs.forEach(doc -> {
+            // logger.info( doc.toJson() );
             var applyment_id = doc.get("applyment_id").toString();
             try {
                 Map<String, String> retData = wxpay.queryMicroByApplyId(applyment_id);
                 if ( !Util.IsWxRetSuccess(retData) ) return;
+                // logger.info( retData.toString() );
                 String now = Util.getNowStr();
-                // content, dt, op, payload
+                // content, dt, op, payloads(general name, that )
                 var noty_msg = new Document("dt", now);
                 var retState = retData.get("applyment_state");
                 var _id = doc.get("_id").toString();
+                mongo.updateMch(_id, Map.of("status", retState) );
                 switch (retState) {
                     case "REJECTED": {
                         AuditDetail ad = new Gson().fromJson(retData.get("applyment_state"), AuditDetail.class);
                         String reason = ad.audit_detail.stream().map(r -> r.reject_reason + "; ")
                                 .collect(Collectors.joining());
                         noty_msg.append("content", "申请已驳回，原因：" + reason);
-                        noty_msg.append("op", "reapply");
-                        mongo.updateMch(_id, Map.of("status", "rejected") );
+                        noty_msg.append("op", "重新申请");
                         break;
                     }
                     case "FROZEN": {
                         noty_msg.append("content", "商户已冻结");
-                        noty_msg.append("op", "reapply");
-                        mongo.updateMch(_id, Map.of("status", "frozen") );
+                        noty_msg.append("op", "重新申请");
                         break;
                     }
                     case "TO_BE_SIGNED":
-                    case "FINISH": {
-                        noty_msg.append("content", "商户审核通过，待支付&签约");
-                        noty_msg.append("op", "pay_fee");
-                        noty_msg.append("payload", _id);
+                    case "FINISH": {                      
+                        var merchant_shortname = doc.get("merchant_shortname").toString();
+                        var sign_url = retData.get("sign_url");
+                        //for test
+                        if(sign_url == null) sign_url = "https://timgsa.baidu.com/timg?image&quality=80&size=b9999_10000&sec=1560007966594&di=0505936013ee3e1275c62383f63a0b53&imgtype=0&src=http%3A%2F%2Fpic9.nipic.com%2F20100827%2F5252423_161258496483_2.jpg";
+                        var token = Util.signSubMchId( retData.get("sub_mch_id") );
+                        noty_msg.append("content", String.format("【%s】商户审核通过，请用商户认证微信号扫码签约", merchant_shortname));
+                        noty_msg.append("op", "待签约");
+                        noty_msg.append("sign_url", sign_url);
+                        noty_msg.append("token", token);
+                        noty_msg.append("merchant_shortname", merchant_shortname);
+
                         mongo.updateMch(_id, Map.of(
-                            "status", "to_be_signed",
                             "sub_mch_id", retData.get("sub_mch_id"),
-                            "sign_url", retData.get("sign_url")
+                            "sign_url", sign_url
                             ) 
                         );
-                        logger.info("sign_url={}", retData.get("sign_url"));
+                        // logger.info("sign_url={}", sign_url);
+                        
+                        var html = Util.fillTemplate("reg_ok.ftl", Map.of("sign_url", sign_url, "token", QrCode.genQr(token)));
+                        Mail.sendMail(String.format("【%s】微信商户注册成功", merchant_shortname), html, doc.get("contact_email").toString());
                         break;
                     }
                 }
                 var cli_id = doc.get("cli_id").toString();
                 if ( !WxWs.notify_msg(cli_id, noty_msg) ) {
+                    noty_msg.put("cli_id", cli_id);
                     mongo.insertNotyMsg(noty_msg);
                 }
                 
