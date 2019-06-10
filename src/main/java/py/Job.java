@@ -58,7 +58,7 @@ public class Job {
             try {
                 Map<String, String> retData = wxpay.queryMicroByApplyId(applyment_id);
                 if ( !Util.IsWxRetSuccess(retData) ) return;
-                // logger.info( retData.toString() );
+                logger.info( retData.toString() );
                 String now = Util.getNowStr();
                 // content, dt, op, payloads(general name, that )
                 var noty_msg = new Document("dt", now);
@@ -84,31 +84,43 @@ public class Job {
                         var merchant_shortname = doc.get("merchant_shortname").toString();
                         var sign_url = retData.get("sign_url");
                         //for test
-                        if(sign_url == null) sign_url = "https://timgsa.baidu.com/timg?image&quality=80&size=b9999_10000&sec=1560007966594&di=0505936013ee3e1275c62383f63a0b53&imgtype=0&src=http%3A%2F%2Fpic9.nipic.com%2F20100827%2F5252423_161258496483_2.jpg";
+                        if(sign_url == null) {
+                            if(doc.get("sign_url") == null){
+                                sign_url = "https://pay.weixin.qq.com/public/apply_sign_mobile/showQrcode?merchantId=105143047&sign=62987c4fc548f65327a4d2ce6c2a47aa";
+                            } else {
+                                sign_url = doc.get("sign_url").toString();
+                            }
+                        }
+                        
                         var token = Util.signSubMchId( retData.get("sub_mch_id") );
                         noty_msg.append("content", String.format("【%s】商户审核通过，请用商户认证微信号扫码签约", merchant_shortname));
                         noty_msg.append("op", "待签约");
                         noty_msg.append("sign_url", sign_url);
                         noty_msg.append("token", token);
                         noty_msg.append("merchant_shortname", merchant_shortname);
-
-                        mongo.updateMch(_id, Map.of(
-                            "sub_mch_id", retData.get("sub_mch_id"),
-                            "sign_url", sign_url
-                            ) 
-                        );
-                        // logger.info("sign_url={}", sign_url);
-                        
+                        if(doc.get("sub_mch_id") == null && doc.get("sign_url") == null){
+                            mongo.updateMch(_id, Map.of(
+                                "sub_mch_id", retData.get("sub_mch_id"),
+                                "sign_url", sign_url
+                                ) 
+                            );
+                        }
+                        // logger.info("sign_url={}", sign_url);                        
                         var html = Util.fillTemplate("reg_ok.ftl", Map.of("sign_url", sign_url, "token", QrCode.genQr(token)));
                         Mail.sendMail(String.format("【%s】微信商户注册成功", merchant_shortname), html, doc.get("contact_email").toString());
+                        // in case throw exception, so put it behind
+                        if(retState.equals("TO_BE_SIGNED")){
+                            // TO_BE_SIGNED
+                            var ret = wxpay.setJsApiPath(retData.get("sub_mch_id"), Secret.wxjsapiPath);
+                        }                        
                         break;
                     }
-                }
+                } //end switch
                 var cli_id = doc.get("cli_id").toString();
-                if ( !WxWs.notify_msg(cli_id, noty_msg) ) {
+                // if ( !WxWs.notify_msg(cli_id, noty_msg) ) {
                     noty_msg.put("cli_id", cli_id);
                     mongo.insertNotyMsg(noty_msg);
-                }
+                // }
                 
             } catch (Exception e) {
                 e.printStackTrace();

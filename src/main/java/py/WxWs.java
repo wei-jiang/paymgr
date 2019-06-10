@@ -52,11 +52,15 @@ public class WxWs {
             });
             ws.onMessage((session, message) -> {
                 try {
-                    Map<String, String> data = Util.jsonStrToMap(message);
-                    if (data.get("cmd") == null)
-                        throw new Exception("invalid request");
-                    handle_msg(data, session);
+                    if( !message.isEmpty() ){
+                        Map<String, String> data = Util.jsonStrToMap(message);
+                        if (data.get("cmd") == null)
+                            throw new Exception("invalid request");
+                        handle_msg(data, session);
+                    }
+                    
                 } catch (Exception e) {
+                    e.printStackTrace();
                     session.close();
                 }
             });
@@ -215,13 +219,13 @@ public class WxWs {
     private void cli_online(String id, WsSession session) {
         if (id2sock.get(id) != null) {
             WsSession old_sock = id2sock.get(id);
-            old_sock.close();
-            sock2id.remove(old_sock);
             logger.info("same client [{}] online, dump old one", id);
+            old_sock.close();
+            sock2id.remove(old_sock);           
         }
         id2sock.put(id, session);
         sock2id.put(session, id);
-        session.setIdleTimeout(3600 * 1000); // ms
+        // session.setIdleTimeout(3600 * 1000); // ms this will result in client not get close notified?
         logger.info(String.format("cli_online [%s] id2sock.size=%d && sock2id.size=%d", id, id2sock.size(), sock2id.size()));
     }
 

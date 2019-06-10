@@ -64,5 +64,8 @@ dependencies {
   implementation 'org.slf4j:slf4j-api:1.7.26'
   implementation 'org.slf4j:slf4j-simple:1.7.26'
   implementation 'io.javalin:javalin:2.8.0'
+  // just add these and logback.xml will be enough ?
+  compile "ch.qos.logback:logback-classic:1.2.1"
+  compile "net.logstash.logback:logstash-logback-encoder:5.1"
   testImplementation group: 'junit', name: 'junit', version: '4.12'
 }

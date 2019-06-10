@@ -90,31 +90,32 @@ public class WxRest {
                 var out_trade_no = notifyMap.get("out_trade_no");
                 var doc = mongo.findPoByOid(out_trade_no);
                 if (doc != null) {
-                    var cli_id = doc.remove("cli_id");
+                    // var cli_id = doc.remove("cli_id");
                     doc.remove("createdAt");
                     doc.append("transaction_id", notifyMap.get("transaction_id"));
                     mongo.insertSuccessOrder(doc);
-                    var attach = notifyMap.get("attach");
-                    if (attach != null) {
-                        var payload = attach.split(",");
-                        var cmd = payload[0];
-                        var data = payload.length >= 2 ? payload[1] : null;
-                        evtSys.handle(cmd, data, doc);
-                        mongo.delPoByOid(out_trade_no);
-                    } else {
-                        if(cli_id == null){
-                            mongo.delPoByOid(out_trade_no);
-                        } else {
-                            var cid = cli_id.toString();
-                            if (WxWs.notify_pay_success(cid, doc)) {
-                                logger.info("notify client successful, cli_id={}; out_trade_no={}", cid, out_trade_no);
-                                mongo.delPoByOid(out_trade_no);
-                            } else {
-                                mongo.updatePoStatus(out_trade_no, "paid");
-                                logger.info("client offlined, notification to be continued");
-                            }
-                        }
-                    }    
+                    mongo.delPoByOid(out_trade_no);
+                    // var attach = notifyMap.get("attach");
+                    // if (attach != null) {
+                    //     var payload = attach.split(",");
+                    //     var cmd = payload[0];
+                    //     var data = payload.length >= 2 ? payload[1] : null;
+                    //     evtSys.handle(cmd, data, doc);
+                    //     mongo.delPoByOid(out_trade_no);
+                    // } else {
+                    //     if(cli_id == null){
+                    //         mongo.delPoByOid(out_trade_no);
+                    //     } else {
+                    //         var cid = cli_id.toString();
+                    //         if (WxWs.notify_pay_success(cid, doc)) {
+                    //             logger.info("notify client successful, cli_id={}; out_trade_no={}", cid, out_trade_no);
+                    //             mongo.delPoByOid(out_trade_no);
+                    //         } else {
+                    //             mongo.updatePoStatus(out_trade_no, "paid");
+                    //             logger.info("client offlined, notification to be continued");
+                    //         }
+                    //     }
+                    // }    
                 }
             } else {
                 // 签名错误，如果数据里没有sign字段，也认为是签名错误
@@ -145,6 +146,7 @@ public class WxRest {
             var rurl = ctx.queryParam("rurl");
             var token = ctx.queryParam("token");
             var total_fee = ctx.queryParam("total_fee");
+            var out_trade_no = ctx.queryParam("out_trade_no");
             var body = ctx.queryParam("body");
             var cli_id = ctx.queryParam("cli_id");           
             try{               
@@ -154,7 +156,11 @@ public class WxRest {
                 data.put("token", token);   //will be replaced by sub_mch_id
                 var sub_mch_id = Util.getSubMchId(data);
                 data.put("sub_mch_id", sub_mch_id);
-                data.put("out_trade_no", Util.getOutTradeNo());
+                if( out_trade_no == null ) {
+                    data.put("out_trade_no", Util.getOutTradeNo());
+                } else {
+                    data.put("out_trade_no", out_trade_no);
+                }
                 data.put("total_fee", total_fee);
                 data.put("body", body);
                 data.put("spbill_create_ip", cli_ip);
@@ -223,19 +229,36 @@ public class WxRest {
             ctx.json(data);
         });
         app.post("/reg_micro_mch", ctx -> {
-            String _id = ctx.sessionAttribute("_id");
-            if (_id == null || _id.isEmpty()) {
-                ctx.json(Map.of("ret", -1, "msg", "no prerequisite info"));
-                return;
-            }
-            Map<String, String> data = jsonToMap(ctx);
-            Document doc = setMchField(_id, data);
-            data.put("business_code", doc.get("_id").toString());
-            data.put("id_card_copy", doc.get("id_front_media_id").toString());
-            data.put("id_card_national", doc.get("id_back_media_id").toString());
-            data.put("store_entrance_pic", doc.get("store_entrance_media_id").toString());
-            data.put("indoor_pic", doc.get("store_indoor_media_id").toString());
             try {
+                String _id = ctx.sessionAttribute("_id");
+                if (_id == null || _id.isEmpty()) throw new Exception("no prerequisite info");
+                Map<String, String> data = jsonToMap(ctx);
+                if( 
+                    data.get("cli_id") == null
+                    || data.get("id_card_name") == null 
+                    || data.get("id_card_number") == null 
+                    || data.get("id_card_valid_time") == null 
+                    || data.get("account_name") == null
+                    || data.get("account_bank") == null
+                    || data.get("bank_address_code") == null
+                    || data.get("account_number") == null
+                    || data.get("store_name") == null
+                    || data.get("store_address_code") == null
+                    || data.get("store_street") == null
+                    || data.get("merchant_shortname") == null
+                    || data.get("service_phone") == null
+                    || data.get("product_desc") == null
+                    || data.get("contact") == null
+                    || data.get("contact_phone") == null
+                    || data.get("contact_email") == null
+                ) throw new Exception("参数不正确");
+                Document doc = setMchField(_id, data);
+                data.put("business_code", doc.get("_id").toString());
+                data.put("id_card_copy", doc.get("id_front_media_id").toString());
+                data.put("id_card_national", doc.get("id_back_media_id").toString());
+                data.put("store_entrance_pic", doc.get("store_entrance_media_id").toString());
+                data.put("indoor_pic", doc.get("store_indoor_media_id").toString());
+                data.remove("cli_id");
                 Map<String, String> res = wxpay.regMicro(data);
                 Util.checkWxRet(res);
                 setMchField(_id, Map.of(
@@ -246,8 +269,8 @@ public class WxRest {
                 // and wait for background thread to check result
                 ctx.json(Map.of("ret", 0));    
             } catch (Exception e) {
-                logger.info(e.getMessage());
-
+                e.printStackTrace();
+                ctx.json(Map.of("ret", -1, "msg", e.getMessage()));
             }
         });
         app.post("/change_micro_contact_info", ctx -> {
@@ -264,10 +287,7 @@ public class WxRest {
 
                 data.put("sub_mch_id", doc.get("sub_mch_id").toString());
                 Map<String, String> res = wxpay.changeMicroContactInfo(data);
-                if (!(res.get("return_code").equals("SUCCESS")) && res.get("result_code").equals("SUCCESS")) {
-                    throw new Exception(
-                            res.get("err_code_des") == null ? res.get("return_msg") : res.get("err_code_des"));
-                }
+                Util.checkWxRet(res);
                 // field name are different, so
                 setMchField(doc.get("_id").toString(), Map.of("contact_phone", data.get("mobile_phone"),
                         "contact_email", data.get("email"), "merchant_shortname", data.get("merchant_name")));
@@ -301,6 +321,19 @@ public class WxRest {
                 logger.info(e.getMessage());
                 ctx.json(Map.of("ret", -1, "msg", e.getMessage()));
             }
+        });
+        app.post("/send_veri_code_mch", ctx -> {
+            var data = jsonToMap(ctx);
+            try {
+                var sub_mch_id = Util.getSubMchId(data);
+                var doc = mongo.findMchByField("sub_mch_id", sub_mch_id);
+                if (doc == null) throw new Exception("商户不存在");
+                data.put("email", doc.get("contact_email").toString() );
+                sendVeriCode(data, ctx);
+            } catch (Exception e) {
+                Util.fillErrorMsg(data, e.getMessage());
+                ctx.json(data);
+            }   
         });
         app.post("/send_veri_code_user", ctx -> {
             var data = jsonToMap(ctx);
@@ -395,6 +428,39 @@ public class WxRest {
             ctx.result(completionFuture);
         });
         // rest for wxpay, every request data must have token
+        app.post("/wx/poll_order_query", ctx -> {
+            var data = jsonToMap(ctx);            
+            try {
+                if( data.get("token") == null || data.get("out_trade_no") == null) throw new Exception("参数不正确");
+                var sub_mch_id = Util.getSubMchId(data);
+                var doc = mongo.findOrderByFields( Map.of(
+                    "sub_mch_id", sub_mch_id,
+                    "out_trade_no", data.get("out_trade_no")
+                ) );
+                if(doc == null) throw new Exception("not found");
+                data.put("ret", "0");
+            } catch (Exception e) {
+                data.put("ret", "-1");
+                data.put("msg", e.getMessage());
+            }
+            ctx.json(data);
+        });
+        app.post("/wx/poll_noty", ctx -> {
+            var data = jsonToMap(ctx);            
+            try {
+                if(data.get("cli_id") == null) throw new Exception("参数不正确");
+                var notys = mongo.findNotyByFields( Map.of(
+                    "cli_id", data.get("cli_id")
+                ) );
+                var retData = new Document("ret", "0").append("notys", notys);
+                ctx.json(retData);
+                mongo.delNotyByCli_id( data.get("cli_id") );
+            } catch (Exception e) {
+                data.put("ret", "-1");
+                data.put("msg", e.getMessage());
+                ctx.json(data);
+            }           
+        });
         app.post("/wx/unified_order", ctx -> {
             var data = jsonToMap(ctx);
             try {
@@ -402,7 +468,7 @@ public class WxRest {
                 var sub_mch_id = Util.getSubMchId(data);
                 var cli_ip = ctx.header("x-forwarded-for");
                 if (cli_ip == null) cli_ip = "222.244.74.216";
-                data.put("out_trade_no", Util.getOutTradeNo());
+                if( data.get("out_trade_no") == null ) data.put("out_trade_no", Util.getOutTradeNo());
                 data.put("sub_mch_id", sub_mch_id);
                 data.put("spbill_create_ip", cli_ip);
                 data.put("trade_type", "NATIVE"); // 此处指定为扫码支付
@@ -484,8 +550,46 @@ public class WxRest {
             }
             ctx.json(data);
         });
+        app.post("/wx/vericode_refund", ctx -> {
+            var data = jsonToMap(ctx);           
+            try {
+                // all refund
+                if( data.get("token") == null 
+                    || data.get("code") == null 
+                    || data.get("out_trade_no") == null 
+                ) throw new Exception("参数不正确");
+                var sub_mch_id = Util.getSubMchId(data);
+                var doc = mongo.findMchByField("sub_mch_id", sub_mch_id);
+                if(doc == null ) throw new Exception("商户不存在");
+                if( !mongo.checkVeriCodeDel( doc.get("contact_email").toString(), data.get("code")) ) 
+                    throw new Exception("验证码不正确");
+                doc = mongo.findOrderByOid(data.get("out_trade_no"));
+                if(doc == null ) throw new Exception("订单不存在");
+                data.clear();
+                data.put("out_trade_no", doc.get("out_trade_no").toString());
+                data.put("out_refund_no", doc.get("out_trade_no").toString());
+                data.put("total_fee", doc.get("total_fee").toString());
+                data.put("refund_fee", doc.get("total_fee").toString());
+                data.put("sub_mch_id", sub_mch_id);
+                data.put("notify_url", Secret.refundNotifyUrl);
+                Map<String, String> resp = wxpay.refund(data);
+                logger.info(resp.toString());
+                Util.checkWxRet(resp);
+                data = resp;
+                data.put("ret", "0");
+            } catch (Exception e) {
+                Util.fillErrorMsg(data, e.getMessage());
+            }
+            ctx.json(data);
+        });
         app.post("/wx/refund", ctx -> {
             var data = jsonToMap(ctx);
+            if( data.get("token") == null 
+                || data.get("out_trade_no") == null 
+                || data.get("out_refund_no") == null 
+                || data.get("total_fee") == null
+                || data.get("refund_fee") == null
+            ) throw new Exception("参数不正确");
             try {
                 var sub_mch_id = Util.getSubMchId(data);
                 data.put("sub_mch_id", sub_mch_id);
@@ -565,7 +669,7 @@ public class WxRest {
                 var sub_mch_id = Util.getSubMchId(data);
                 var cli_ip = ctx.header("x-forwarded-for");
                 if (cli_ip == null) cli_ip = "222.244.74.216";
-                data.put("out_trade_no", Util.getOutTradeNo());
+                if( data.get("out_trade_no") == null ) data.put("out_trade_no", Util.getOutTradeNo());
                 data.put("sub_mch_id", sub_mch_id);
                 data.put("spbill_create_ip", cli_ip);
                 Map<String, String> resp = wxpay.microPay(new HashMap<String, String>(data));
@@ -648,7 +752,7 @@ public class WxRest {
             Document doc = setMchField(_id, new HashMap<>(Map.of(imgPathField, imgName, imgMediaIdField, media_id)));
             if (_id == null || _id.isEmpty()) {
                 _id = doc.get("_id").toString();
-            } else {
+            } else if( doc.get(imgPathField) != null && doc.get(imgMediaIdField) != null ){
                 // save old image
                 Map<String, String> oldImg = new HashMap<>();
                 oldImg.put(imgPathField, doc.get(imgPathField).toString());
@@ -661,12 +765,12 @@ public class WxRest {
             ctx.json(Map.of("ret", 0, "media_id", media_id, "_id", _id));
         } catch (Exception e) {
             e.printStackTrace();
-            try {
-                // notify wx also delete img, but there is no official api
-                Files.deleteIfExists(Paths.get(filePath));
-            } catch (Exception ex) {
-                // TODO: handle exception
-            }
+            // try {
+            //     // notify wx also delete img, but there is no official api
+            //     Files.deleteIfExists(Paths.get(filePath));
+            // } catch (Exception ex) {
+            //     // TODO: handle exception
+            // }
             ctx.json(Map.of("ret", -1, "msg", e.getMessage()));
             // Map.ofEntries(
             // entry("a", "b"),
