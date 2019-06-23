@@ -115,6 +115,9 @@ public class Job {
                         }                        
                         break;
                     }
+                    default:{
+                        return;
+                    }
                 } //end switch
                 var cli_id = doc.get("cli_id").toString();
                 // if ( !WxWs.notify_msg(cli_id, noty_msg) ) {

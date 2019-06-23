@@ -91,9 +91,16 @@ public class WxRest {
                 var doc = mongo.findPoByOid(out_trade_no);
                 if (doc != null) {
                     // var cli_id = doc.remove("cli_id");
-                    doc.remove("createdAt");
-                    doc.append("transaction_id", notifyMap.get("transaction_id"));
-                    mongo.insertSuccessOrder(doc);
+                    Document successOrder = new Document("out_trade_no", out_trade_no);
+                    successOrder.append("transaction_id", notifyMap.get("transaction_id"));
+                    successOrder.append("total_fee", doc.get("total_fee"));
+                    successOrder.append("body", doc.get("body"));
+                    successOrder.append("sub_mch_id", doc.get("sub_mch_id"));
+                    successOrder.append("spbill_create_ip", doc.get("spbill_create_ip"));
+                    successOrder.append("trade_type", doc.get("trade_type"));
+                    successOrder.append("time_start", doc.get("time_start"));
+                    successOrder.append("cli_id", doc.get("cli_id"));
+                    mongo.insertSuccessOrder(successOrder);
                     mongo.delPoByOid(out_trade_no);
                     // var attach = notifyMap.get("attach");
                     // if (attach != null) {
@@ -445,6 +452,25 @@ public class WxRest {
             }
             ctx.json(data);
         });
+        app.post("/wx/local_order_query", ctx -> {
+            var data = jsonToMap(ctx);     
+            Document resData = new Document();       
+            try {
+                if( data.get("token") == null || data.get("out_trade_no") == null) throw new Exception("参数不正确");
+                var sub_mch_id = Util.getSubMchId(data);
+                var doc = mongo.findOrderByFields( Map.of(
+                    "sub_mch_id", sub_mch_id,
+                    "out_trade_no", data.get("out_trade_no")
+                ) );
+                if(doc == null) throw new Exception("订单不存在");
+                resData.put("ret", "0");
+                resData.put("order", doc);
+            } catch (Exception e) {
+                resData.put("ret", "-1");
+                resData.put("msg", e.getMessage());
+            }
+            ctx.json(resData);
+        });
         app.post("/wx/poll_noty", ctx -> {
             var data = jsonToMap(ctx);            
             try {
@@ -489,10 +515,45 @@ public class WxRest {
             var data = jsonToMap(ctx);
             try {
                 var sub_mch_id = Util.getSubMchId(data);
-                // logger.info(data.get("out_trade_no"));
+                var out_trade_no = data.get("out_trade_no");
+                // logger.info(out_trade_no);
+                // these 3 just for insert order content, not for request data, so remove it
+                var body = data.remove("body");
+                var time_start = data.remove("time_start");
+                var cli_id = data.remove("cli_id");
                 data.put("sub_mch_id", sub_mch_id);
                 Map<String, String> resp = wxpay.orderQuery(data);
                 Util.checkWxRet(resp);
+                // SUCCESS—支付成功
+                // REFUND—转入退款
+                // NOTPAY—未支付
+                // CLOSED—已关闭
+                // REVOKED—已撤销（付款码支付）
+                // USERPAYING--用户支付中（付款码支付）
+                // PAYERROR--支付失败(其他原因，如银行返回失败)
+                if(resp.get("trade_state").equals("SUCCESS")){
+                    var doc = mongo.findOrderByFields(Map.of(
+                        "sub_mch_id", sub_mch_id,
+                        "out_trade_no", out_trade_no
+                    ));
+                    if( doc == null 
+                        && body != null 
+                        && time_start != null
+                        && cli_id != null
+                    ){
+                        var cli_ip = ctx.header("x-forwarded-for");
+                        Document successOrder = new Document("out_trade_no", out_trade_no);
+                        successOrder.append("transaction_id", resp.get("transaction_id"));
+                        successOrder.append("total_fee", resp.get("total_fee"));
+                        successOrder.append("body", body);
+                        successOrder.append("sub_mch_id", resp.get("sub_mch_id"));
+                        successOrder.append("spbill_create_ip", cli_ip);
+                        successOrder.append("trade_type", resp.get("trade_type"));
+                        successOrder.append("time_start", time_start);
+                        successOrder.append("cli_id", cli_id);
+                        mongo.insertSuccessOrder(successOrder);
+                    }
+                }
                 data = resp;
                 data.put("ret", "0");
             } catch (Exception e) {
@@ -674,14 +735,20 @@ public class WxRest {
                 data.put("spbill_create_ip", cli_ip);
                 Map<String, String> resp = wxpay.microPay(new HashMap<String, String>(data));
                 logger.info(resp.toString());
-                Util.checkWxRet(resp);
+                // Util.checkWxRet(resp);
+                if (!Util.IsWxRetSuccess(resp)){
+                    data.clear();
+                    data.put( "err_code", resp.get("err_code") );
+                    throw new Exception(Util.wxErrMsg(resp));
+                }                   
                 data.remove("auth_code");
                 data.put("trade_type", resp.get("trade_type"));
                 data.put("transaction_id", resp.get("transaction_id"));
                 mongo.insertSuccessOrder(data);
                 data.put("ret", "0");
             } catch (Exception e) {
-                Util.fillErrorMsg(data, e.getMessage());
+                data.put("ret", "-1");
+                data.put("msg", e.getMessage());
             }
             ctx.json(data);
         });

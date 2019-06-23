@@ -40,9 +40,7 @@ public class Main {
         WXPay wxpay = new WXPay(config, Secret.notifyUrl);
         // for test
         // var ret = wxpay.setJsApiPath(Secret.sub_mch_id, Secret.wxjsapiPath);
-        // logger.info(ret.toString());
-        // wxpay.queryMicroByApplyId("2000002125333664");
-        // wxpay.queryMicroByBusiCode("5ce42b1c71dc1f4eb35c9adc");
+
         // multiple static files merges
         Javalin app = Javalin.create()
         .enableStaticFiles("/public")
